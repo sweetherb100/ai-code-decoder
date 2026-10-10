@@ -47,3 +47,7 @@ agent/
   decoder.py        Agent와 Runner 구성
 app.py              Streamlit 데모
 ```
+
+## 학습 문서
+
+- [OpenAI Function Calling / Tool Calling](docs/function-calling.md): 개념, Responses API 예제, 실무 설계 체크리스트
