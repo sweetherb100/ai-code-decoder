@@ -6,7 +6,11 @@ from agents import Agent, Runner, set_tracing_disabled
 
 from agent.models import DecodeResult
 from agent.prompts import instructions_for_level
-from agent.tools import analyze_code_tool, lookup_documentation_tool
+from agent.tools import (
+    analyze_code_tool,
+    build_learning_plan_tool,
+    lookup_documentation_tool,
+)
 
 
 def decode_code(code: str, level: str, context: str = "") -> DecodeResult:
@@ -22,7 +26,11 @@ def decode_code(code: str, level: str, context: str = "") -> DecodeResult:
         name="AI Code Decode Agent",
         instructions=instructions_for_level(level),
         model=model,
-        tools=[analyze_code_tool, lookup_documentation_tool],
+        tools=[
+            analyze_code_tool,
+            build_learning_plan_tool,
+            lookup_documentation_tool,
+        ],
         output_type=DecodeResult,
     )
     context_text = context.strip()

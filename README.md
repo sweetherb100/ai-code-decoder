@@ -5,6 +5,7 @@ OpenAI Agents SDK와 Streamlit으로 만든 Python 코드 이해 학습 도구�
 ## 기능
 
 - Python 코드의 import, 함수 호출, f-string, comprehension, async/await 등을 AST로 정적으로 분석합니다.
+- 분석 결과에서 핵심 개념을 최대 3개 선정하고 설명 순서를 만듭니다.
 - Agents SDK 에이전트가 분석 및 공식 문서 조회 도구를 사용합니다.
 - Python 내장 함수·타입과 표준 라이브러리 문서만 조회합니다. 서드파티 라이브러리는 지원하지 않는다고 표시합니다.
 - 설명 수준을 Beginner 또는 Developer로 선택할 수 있습니다.

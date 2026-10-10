@@ -41,6 +41,30 @@ class CodeAnalysis(BaseModel):
     notes: list[str]
 
 
+class LearningPlanItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_id: str
+    explanation_order: int
+    reason: str
+
+
+class ExcludedLearningTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_id: str
+    reason: str
+
+
+class LearningPlan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    audience_level: Literal["Beginner", "Developer"]
+    primary_targets: list[LearningPlanItem]
+    syntax_topics: list[str]
+    excluded_targets: list[ExcludedLearningTarget]
+
+
 class SourceReference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
