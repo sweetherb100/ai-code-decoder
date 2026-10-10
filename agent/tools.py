@@ -10,7 +10,7 @@ from agent.documentation import lookup_documentation
 
 @function_tool(name_override="analyze_code")
 def analyze_code_tool(code: str, surrounding_context: str) -> str:
-    """Statically analyze Python source and return imports, calls, syntax, and learning targets."""
+    """Statically analyze Python source and return traceable learning targets."""
     return analyze_code(code, surrounding_context).model_dump_json()
 
 
