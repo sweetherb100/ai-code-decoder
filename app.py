@@ -9,6 +9,7 @@ import streamlit as st
 
 from agent.analyzer import CodeAnalysisError, MAX_CODE_CHARACTERS, analyze_code
 from agent.decoder import decode_code
+from agent.quality import DecodeQualityError
 
 
 load_dotenv()
@@ -75,6 +76,11 @@ if decode_clicked:
             st.session_state["code_analysis"] = analysis
         except CodeAnalysisError as exc:
             st.error(str(exc))
+            st.session_state.pop("decode_result", None)
+            st.session_state.pop("code_analysis", None)
+        except DecodeQualityError as exc:
+            st.error(str(exc))
+            st.caption("도구 근거에 맞는 응답을 만들지 못했습니다. 다시 시도해 주세요.")
             st.session_state.pop("decode_result", None)
             st.session_state.pop("code_analysis", None)
         except Exception as exc:

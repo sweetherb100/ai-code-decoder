@@ -10,6 +10,7 @@ from agents import Agent, Runner, set_tracing_disabled
 
 from agent.models import CodeAnalysis, DecodeResult
 from agent.prompts import instructions_for_level
+from agent.quality import validate_decode_result
 from agent.workflow import run_tool_workflow
 
 
@@ -51,4 +52,4 @@ def decode_code(
     result = Runner.run_sync(agent, user_input)
     if not isinstance(result.final_output, DecodeResult):
         raise RuntimeError("에이전트가 정해진 디코드 응답 형식으로 답하지 않았습니다.")
-    return result.final_output
+    return validate_decode_result(result.final_output, workflow)

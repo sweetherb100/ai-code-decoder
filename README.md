@@ -8,6 +8,7 @@ OpenAI Agents SDK와 Streamlit으로 만든 Python 코드 이해 학습 도구�
 - 분석 결과에서 핵심 개념을 최대 3개 선정하고 설명 순서를 만듭니다.
 - 앱이 분석 → 학습 계획 → 공식 문서 조회 순서로 도구 흐름을 실행한 뒤, Agents SDK 에이전트가 결과를 설명합니다.
 - 문서 조회 결과는 정확한 심볼 일치, 페이지 단위 일치, 미지원, 일시적 조회 실패 상태로 구분합니다.
+- 최종 답변은 실제 도구가 반환한 정확한 문서 근거만 출처로 표시하도록 검증합니다.
 - Python 내장 함수·타입과 표준 라이브러리 문서만 조회합니다. 서드파티 라이브러리는 지원하지 않는다고 표시합니다.
 - 설명 수준을 Beginner 또는 Developer로 선택할 수 있습니다.
 - 주변 코드를 선택적으로 붙여 넣어 Why 설명에 맥락을 제공할 수 있습니다.
@@ -45,6 +46,7 @@ agent/
   planner.py        학습 대상 우선순위와 설명 순서 선정
   workflow.py       분석·계획·문서 조회 순서 강제
   documentation.py  공식 Python 문서 조회
+  quality.py        최종 응답의 문서 근거 검증
   tools.py          Agents SDK 함수 도구
   prompts.py        What/Why/Source/Example/Check 지침
   models.py         분석 및 구조화 응답 모델
