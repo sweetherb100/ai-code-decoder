@@ -69,7 +69,7 @@ if decode_clicked:
             with st.status("에이전트가 코드와 공식 문서를 분석하고 있습니다…", expanded=True) as status:
                 st.write("Python 문법 구조 확인 완료")
                 st.write(f"발견한 학습 대상: {len(analysis.learning_targets)}개")
-                decoded = decode_code(code, level, context)
+                decoded = decode_code(code, level, context, analysis)
                 status.update(label="코드 디코딩 완료", state="complete", expanded=False)
             st.session_state["decode_result"] = decoded
             st.session_state["code_analysis"] = analysis
