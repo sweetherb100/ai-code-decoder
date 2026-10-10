@@ -45,7 +45,7 @@ def decode_code(
         f"<surrounding_context>\n{context_block}\n</surrounding_context>\n\n"
         f"<analysis>\n{workflow.analysis.model_dump_json()}\n</analysis>\n\n"
         f"<learning_plan>\n{workflow.learning_plan.model_dump_json()}\n</learning_plan>\n\n"
-        f"<documentation>\n{json.dumps(workflow.documentation, ensure_ascii=False)}\n</documentation>\n\n"
+        f"<documentation>\n{json.dumps([evidence.model_dump() for evidence in workflow.documentation], ensure_ascii=False)}\n</documentation>\n\n"
         f"Audience level: {level}. Return all fields in {DecodeResult.__name__}."
     )
     result = Runner.run_sync(agent, user_input)

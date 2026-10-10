@@ -65,9 +65,22 @@ class LearningPlan(BaseModel):
     excluded_targets: list[ExcludedLearningTarget]
 
 
+class DocumentationEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: str
+    status: Literal["exact_match", "page_only", "unsupported", "unavailable"]
+    module: str
+    symbol: str
+    title: str
+    excerpt: str
+    url: str
+
+
 class SourceReference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    source_id: str
     title: str
     url: str
 

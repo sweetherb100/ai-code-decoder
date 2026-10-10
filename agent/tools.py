@@ -1,6 +1,5 @@
 """OpenAI Agents SDK function tools for static analysis and documentation."""
 
-import json
 from typing import Literal
 
 from agents import function_tool
@@ -33,5 +32,5 @@ def build_learning_plan_tool(
 
 @function_tool(name_override="lookup_documentation")
 def lookup_documentation_tool(module: str, symbol: str) -> str:
-    """Look up a Python builtin or standard-library symbol in official Python documentation."""
-    return json.dumps(lookup_documentation(module, symbol), ensure_ascii=False)
+    """Look up a Python API and return evidence status, excerpt, and official URL."""
+    return lookup_documentation(module, symbol).model_dump_json()
