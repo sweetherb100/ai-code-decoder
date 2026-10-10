@@ -109,6 +109,8 @@ def get_flight_info(origin: str, destination: str) -> dict:
 ```
 
 ### 2. 모델 호출, 실행, 결과 전달
+여기서 `call_id`는 함수 호출과 결과를 짝짓는 값이다. 응답에 여러 함수 호출이 올 수 있으므로 모든 `function_call` 항목을 처리한다. 예제의 `previous_response_id`는 앞선 응답을 이어가는 방법이다. 대화 전체를 직접 보관하는 설계라면 이전 모델 출력과 도구 결과를 입력에 누적해 전달할 수도 있다. [Responses API 도구 호출 예제](https://developers.openai.com/api/docs/guides/function-calling)
+
 
 ```python
 FUNCTIONS = {
@@ -131,6 +133,7 @@ def ask_about_flight(question: str) -> str:
     # 응답에 함수 호출이 있을 수 있다. 도구 실행은 우리 애플리케이션의 책임이다.
     while True:
         calls = [item for item in response.output if item.type == "function_call"]
+        # 모델이 최종 답변을 반환해 함수 호출이 없으면 답변을 돌려주고 반복을 끝낸다.
         if not calls:
             return response.output_text
 
@@ -179,19 +182,6 @@ def ask_about_flight(question: str) -> str:
 print(ask_about_flight("암스테르담에서 뉴욕으로 가는 항공편 정보를 알려줘."))
 ```
 
-여기서 `call_id`는 함수 호출과 결과를 짝짓는 값이다. 응답에 여러 함수 호출이 올 수 있으므로 모든 `function_call` 항목을 처리한다. 예제의 `previous_response_id`는 앞선 응답을 이어가는 방법이다. 대화 전체를 직접 보관하는 설계라면 이전 모델 출력과 도구 결과를 입력에 누적해 전달할 수도 있다. [Responses API 도구 호출 예제](https://developers.openai.com/api/docs/guides/function-calling)
-
-## 영상 예제에서 배울 점
-
-영상의 공항 에이전트는 항공편 조회, 예약, 불만 접수 도구를 등록하고 모델이 요청에 맞는 함수를 선택하는 것을 보여준다. 핵심은 자연어를 제어 가능한 인수로 바꾸고, 앱의 실제 함수를 실행한 뒤, 결과로 답변을 만드는 구조다.
-
-마지막 복합 요청에서는 예약 함수에 필요한 항공편 시간과 항공사가 실제 조회 결과에서 오지 않았는데도 모델이 값을 채운다. 함수 스키마에서 필수라고 표시하는 것은 **입력이 있어야 한다**는 뜻이지, 그 값이 실제 사실이라는 보증이 아니다. 실전에서는 다음처럼 처리한다.
-
-1. 예약 전에 조회 도구를 실행해 실제 항공편을 찾는다.
-2. 예약 함수는 모델이 만든 날짜·항공사 문자열을 그대로 신뢰하지 않고, 조회된 항공편 ID를 받도록 설계한다.
-3. 사용자가 고른 항공편과 예약 조건을 서버에서 다시 확인한다.
-4. 예약이나 결제처럼 변경을 일으키는 작업은 별도의 사용자 확인과 권한 검사를 거친다.
-
 ## 참고 자료
 
 - 영상: [OpenAI Function Calling - Full Beginner Tutorial](https://www.youtube.com/watch?v=aqdWSYWC_LI)
@@ -200,15 +190,15 @@ print(ask_about_flight("암스테르담에서 뉴욕으로 가는 항공편 정�
 
 영상의 원본 코드는 초기 `functions` / `function_call` 파라미터와 LangChain 래퍼를 보여준다. 이 문서의 코드는 같은 개념을 Responses API의 `tools` / `tool_choice`와 `function_call_output` 구조로 다시 구성했으며, 최신 모델명·SDK 지원 여부는 실행 시 공식 API 문서를 확인한다.
 
-원본 코드에는 모델이 반환한 함수 이름을 `eval()`로 실행하는 부분이 있다. 모델 출력 문자열을 코드로 실행하는 패턴은 권한 경계를 무너뜨릴 수 있으므로 사용하지 않는다. 위 예제처럼 고정된 함수 매핑에서만 선택하고, 함수 인수도 검증한다.
 
+## Appendix
 
-## 용어: function calling과 tool calling
+### 1. 용어: function calling과 tool calling
 
 OpenAI 문서에서는 **function calling을 tool calling이라고도 부른다**. 함수는 도구의 한 종류이며, function tool은 JSON Schema로 함수 이름과 인수를 정의하는 형태다. 다만 `tool`은 더 넓은 개념이다. 웹 검색, 코드 실행, MCP 연결 등 함수 형태가 아닌 도구도 포함하므로, 모든 tool calling이 사용자 정의 함수 호출만을 뜻하지는 않는다. 대화에서는 두 용어가 같은 기능을 가리키는 문맥도 흔하다. [OpenAI 용어와 흐름](https://developers.openai.com/api/docs/guides/function-calling)
 
 
-## Appendix: Python OpenAI SDK, Responses API, Agents SDK
+### 2. Python OpenAI SDK, Responses API, Agents SDK
 
 이 문서의 예제를 이해할 때는 **SDK**와 **API**를 구분하면 된다.
 
@@ -218,3 +208,27 @@ OpenAI 문서에서는 **function calling을 tool calling이라고도 부른다*
 - **Agents API**는 또 다른 서버 측 API다. OpenAI가 관리하는 Codex harness에서 세션과 에이전트 실행을 운영한다. Python SDK에는 이를 호출하는 API namespace도 있으므로, "Agents API"가 보이면 Agents SDK의 별칭이라고 단정하지 말고 문맥을 확인한다.
 
 따라서 이 문서의 코드는 **OpenAI Python SDK를 사용해 Responses API를 직접 호출하는 예제**이며, Agents SDK 예제가 아니다. Agents SDK도 OpenAI 모델을 사용할 때 기본적으로 Responses API를 사용하지만, `Agent`와 `Runner`가 도구 호출·턴 진행 같은 에이전트 실행 루프를 관리한다. 같은 Python SDK로 Chat Completions나 Agents API도 호출할 수 있다. 프로젝트 자체는 Agents SDK를 사용하므로, 프로젝트 코드의 `Agent` 구성과 이 문서의 `client.responses.create(...)` 예제는 서로 다른 계층의 사용 방식이다. [API 실행 방식 비교](https://developers.openai.com/api/docs/guides/agents) · [Agents SDK와 Responses API](https://openai.github.io/openai-agents-python/agents/) · [Agents API](https://developers.openai.com/api/docs/guides/agents-api/overview) · [OpenAI Python SDK](https://github.com/openai/openai-python) · [OpenAI Agents SDK](https://github.com/openai/openai-agents-python)
+
+### 3. 복수 함수 호출의 순서
+
+`while True`는 함수들을 하나씩 모델에 보내는 반복문이 아니다. 한 번 받은 `response.output` 안의 함수 호출을 전부 모아 실행하고, 결과들을 한 리스트로 만든 다음 모델을 다시 한 번 호출한다. 다음은 모델이 서로 독립적인 두 함수를 한꺼번에 요청한 경우의 순서다.
+
+1. **모델 API 호출 1**: 사용자 질문을 받아 `response.output`에 `get_weather(call_id="call_A", ...)`와 `get_time(call_id="call_B", ...)`를 반환한다.
+2. **앱 실행**: `for call in calls`가 두 호출을 각각 실행한다. 날씨 결과는 `{"temperature": 18}`, 시각 결과는 `{"local_time": "14:30"}`이라고 가정한다.
+3. **결과 짝짓기**: 앱은 다음과 같이 두 항목을 `tool_outputs`에 넣는다. 각 결과의 ID는 해당 함수 호출의 ID와 같다.
+
+   ```python
+   tool_outputs = [
+       {"type": "function_call_output", "call_id": "call_A", "output": '{"temperature": 18}'},
+       {"type": "function_call_output", "call_id": "call_B", "output": '{"local_time": "14:30"}'},
+   ]
+   ```
+
+4. **모델 API 호출 2**: `input=tool_outputs`로 두 결과를 함께 전달한다. 모델은 둘 다 읽고 “현재 기온은 18도이고 현지 시각은 14시 30분입니다”처럼 하나의 답변을 만들 수 있다.
+5. **반복 종료**: 두 번째 응답에 `function_call`이 없으면 `if not calls`가 참이 되어 `response.output_text`를 반환하고 `while`을 끝낸다.
+
+이 경우 함수는 두 개 실행됐지만 모델 API 호출은 두 번이다. 첫 호출이 함수 호출을 몇 개 반환했는지와 별개로, 그 호출들의 결과를 모두 제출하는 후속 호출은 한 번이다. 반면 함수 B가 함수 A의 결과를 알아야만 선택되거나 인자를 정할 수 있다면 한꺼번에 실행할 수 없다. 첫 결과를 보낸 뒤 모델이 B를 요청할 수 있으므로 **호출 1 → 함수 A 실행 → 호출 2 → 함수 B 실행 → 호출 3 → 최종 답변**처럼 이어지고, 매 반복마다 `response`가 새 응답으로 바뀐다.
+
+현재 항공편 예제는 `TOOLS`와 `FUNCTIONS`에 `get_flight_info` 하나만 등록했으므로 보통 한 번에 함수 호출 하나를 처리한다. 여러 호출을 한 응답에서 처리하는 구조를 보여주기 위해 위에서는 날씨와 시각 함수를 가정했다. 실제로 여러 종류의 함수를 지원하려면 각 함수별 인자 검증도 함수 이름에 맞게 처리해야 한다.
+
+이 메서드는 더 많은 선택 인자를 제공하지만, 이 예제의 흐름을 이해할 때는 위 항목들이 핵심이다. 전체 인자와 타입은 [Responses API 생성 참조](https://developers.openai.com/api/reference/resources/responses/methods/create)에서 확인할 수 있다.

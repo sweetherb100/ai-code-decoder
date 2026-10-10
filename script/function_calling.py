@@ -30,7 +30,7 @@ TOOLS = [
             "additionalProperties": False,
         },
         "strict": True,
-    }
+    },
 ]
 
 def get_flight_info(origin: str, destination: str) -> dict:
@@ -46,6 +46,7 @@ def get_flight_info(origin: str, destination: str) -> dict:
     if result is None:
         return {"found": False, "message": "해당 경로의 항공편을 찾지 못했습니다."}
     return {"found": True, **result}
+
 
 FUNCTIONS = {
     "get_flight_info": get_flight_info,
@@ -64,9 +65,9 @@ def ask_about_flight(question: str) -> str:
         tool_choice="auto",
     )
 
-    # 응답에 함수 호출이 있을 수 있다. 도구 실행은 우리 애플리케이션의 책임이다.
     while True:
         calls = [item for item in response.output if item.type == "function_call"]
+        # 모델이 최종 답변을 반환해 함수 호출이 없으면 답변을 돌려주고 반복을 끝낸다.
         if not calls:
             return response.output_text
 
