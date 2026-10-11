@@ -7,15 +7,19 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 client = OpenAI()
 
-# response = client.responses.create(
-#     model="gpt-4.1-mini",
-#     instructions="간결하고 정확하게 답하세요.",
-#     input="Responses API를 한 문장으로 설명해줘.",
-# )
 
-# print(response.output_text)
+####### EXAMPLE 1 #################
+response = client.responses.create(
+    model="gpt-4.1-mini",
+    instructions="간결하고 정확하게 답하세요.",
+    input="Responses API를 한 문장으로 설명해줘.",
+)
+
+print(response.output_text)
 # Responses API는 사용자 요청에 대한 자동화된 응답을 생성하고 관리하는 인터페이스입니다.
 
+
+####### EXAMPLE 2 #################
 first = client.responses.create(
     model="gpt-4.1-mini",
     input="서울 여행 계획을 세워줘.",
@@ -88,3 +92,35 @@ print(follow_up.output_text)
 # - 서울 주요 관광지는 지하철역 반경 내에 많아 도보 이동도 충분히 가능합니다.  
 
 # 더 궁금한 점이나 다른 일정 원하는 부분 있으면 알려주세요!
+
+
+####### EXAMPLE 3 #################
+response = client.responses.create(
+    model="gpt-4.1-mini",
+    input="회의 메모를 요약하고 제목을 붙여줘: 이번 주 배포는 금요일로 미뤄졌고 QA가 필요하다.",
+    text={
+        "format": {
+            "type": "json_schema",
+            "name": "meeting_summary",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "action_items": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["title", "summary", "action_items"],
+                "additionalProperties": False,
+            },
+        }
+    },
+)
+
+print(response.output_text)
+# {"title":"이번 주 배포 일정 변경 및 QA 필요",
+#  "summary":"이번 주 소프트웨어 배포 일정이 금요일로 연기되었으며, 배포 전 QA 검증 작업이 필요하다.",
+#  "action_items":["금요일 배포에 맞춰 QA 일정 조정","QA 검증 작업 진행","배포 연기 사항 관련 팀원 공지"]}
