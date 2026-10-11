@@ -55,9 +55,10 @@ def decode_code(
         model=model,
         tools=[decode_code_pipeline_tool],
         model_settings=ModelSettings(
-            tool_choice="required",
+            tool_choice="decode_code_pipeline",
             parallel_tool_calls=False,
         ),
+        reset_tool_choice=True,
         output_type=DecodeResult,
     )
     context_text = context.strip()
@@ -69,7 +70,7 @@ def decode_code(
         f"<surrounding_context>\n{context_block}\n</surrounding_context>\n\n"
         f"Audience level: {level}. Return all fields in {DecodeResult.__name__}."
     )
-    result = Runner.run_sync(agent, user_input, context=run_context, max_turns=8)
+    result = Runner.run_sync(agent, user_input, context=run_context, max_turns=2)
     if not isinstance(result.final_output, DecodeResult):
         raise RuntimeError("에이전트가 정해진 디코드 응답 형식으로 답하지 않았습니다.")
     pipeline_evidence = run_context.require_pipeline_evidence()

@@ -6,7 +6,7 @@ from agent.pipeline import run_decode_pipeline
 from agent.run_context import DecodeRunContext
 
 
-@function_tool(name_override="decode_code_pipeline")
+@function_tool(name_override="decode_code_pipeline", strict_mode=True)
 def decode_code_pipeline_tool(context: RunContextWrapper[DecodeRunContext]) -> str:
     """Return verified learning evidence for the submitted Python code.
 
@@ -31,11 +31,10 @@ def decode_code_pipeline_tool(context: RunContextWrapper[DecodeRunContext]) -> s
     values cannot be changed by a tool call.
     """
     run = context.context
-    if run.pipeline_evidence is None:
-        run.pipeline_evidence = run_decode_pipeline(
-            run.code,
-            run.surrounding_context,
-            run.level,
-        )
-        run.record_tool_call("decode_code_pipeline")
+    run.begin_pipeline_tool_call()
+    run.pipeline_evidence = run_decode_pipeline(
+        run.code,
+        run.surrounding_context,
+        run.level,
+    )
     return run.pipeline_evidence.model_dump_json()
