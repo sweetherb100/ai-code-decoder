@@ -77,6 +77,16 @@ class DocumentationEvidence(BaseModel):
     url: str
 
 
+class DecodePipelineEvidence(BaseModel):
+    """Verified results returned by one deterministic decode-pipeline execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    analysis: CodeAnalysis
+    learning_plan: LearningPlan
+    documentation: list[DocumentationEvidence]
+
+
 class SourceReference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

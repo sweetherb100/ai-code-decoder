@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 import streamlit as st
 
-from agent.analyzer import CodeAnalysisError, MAX_CODE_CHARACTERS, analyze_code
+from agent.analyzer import CodeAnalysisError, MAX_CODE_CHARACTERS
 from agent.decoder import decode_code
 from agent.quality import DecodeQualityError
 
@@ -66,11 +66,12 @@ if decode_clicked:
         st.error("OPENAI_API_KEY를 환경 변수, .env 파일 또는 Streamlit secrets에 설정해 주세요.")
     else:
         try:
-            analysis = analyze_code(code, context)
             with st.status("에이전트가 코드와 공식 문서를 분석하고 있습니다…", expanded=True) as status:
-                st.write("Python 문법 구조 확인 완료")
+                execution = decode_code(code, level, context)
+                decoded = execution.result
+                analysis = execution.analysis
+                st.write("에이전트 도구 호출 완료")
                 st.write(f"발견한 학습 대상: {len(analysis.learning_targets)}개")
-                decoded = decode_code(code, level, context, analysis)
                 status.update(label="코드 디코딩 완료", state="complete", expanded=False)
             st.session_state["decode_result"] = decoded
             st.session_state["code_analysis"] = analysis

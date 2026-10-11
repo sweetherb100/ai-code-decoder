@@ -1,7 +1,6 @@
 """Validate that generated decode responses are grounded in tool evidence."""
 
-from agent.models import DecodeResult
-from agent.workflow import ToolWorkflow
+from agent.models import DecodeResult, DocumentationEvidence
 
 
 class DecodeQualityError(ValueError):
@@ -9,7 +8,7 @@ class DecodeQualityError(ValueError):
 
 
 def validate_decode_result(
-    decode_result: DecodeResult, workflow: ToolWorkflow
+    decode_result: DecodeResult, documentation: list[DocumentationEvidence]
 ) -> DecodeResult:
     """Reject responses with missing content or unverifiable documentation sources."""
     issues: list[str] = []
@@ -27,7 +26,7 @@ def validate_decode_result(
 
     exact_evidence = {
         evidence.source_id: evidence
-        for evidence in workflow.documentation
+        for evidence in documentation
         if evidence.status == "exact_match"
     }
     if exact_evidence and not decode_result.source:
