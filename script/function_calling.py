@@ -3,9 +3,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import OpenAI
-
-# Load the .env file from the repository root when this script runs directly.
-load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 client = OpenAI()
 
