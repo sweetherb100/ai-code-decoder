@@ -41,6 +41,7 @@ Chat Completions에서는 주로 `messages`를 보내고 `choices`의 메시지�
 `output_text`는 텍스트를 간단히 꺼낼 때 유용하지만, 도구 호출을 처리하거나 모든 출력 유형을 구분해야 하는 코드에서는 `response.output`을 확인한다.
 
 ## 기본 텍스트 요청
+`client.responses.create(...)`가 API 요청을 만들고, `response.output_text`가 사용자에게 보여줄 텍스트를 반환한다. API 키는 SDK가 기본 환경 변수 `OPENAI_API_KEY`에서 읽는다.
 
 ```python
 from openai import OpenAI
@@ -56,11 +57,12 @@ response = client.responses.create(
 print(response.output_text)
 ```
 
-`client.responses.create(...)`가 API 요청을 만들고, `response.output_text`가 사용자에게 보여줄 텍스트를 반환한다. API 키는 SDK가 기본 환경 변수 `OPENAI_API_KEY`에서 읽는다.
-
 ## 대화 상태 이어가기
 
 후속 요청에 `previous_response_id`를 전달하면 서버가 앞 응답과 연결해 대화 맥락을 이어갈 수 있다.
+
+Responses API 응답은 기본적으로 저장되며, 공식 문서 기준 기본 보존 기간은 30일이다. 따라서 `previous_response_id`로 이어가려면 이전 응답이 저장되어 있고 참조 가능한 상태여야 한다. 응답 저장을 끄려면 `store=False`를 지정할 수 있지만, 이때는 저장된 응답 ID에 의존하지 말고 앱이 필요한 대화 항목을 보관해 다음 요청에 다시 보내는 상태 관리 방식을 사용한다. 자세한 내용은 [대화 상태 가이드](https://developers.openai.com/api/docs/guides/conversation-state)와 [데이터 제어 문서](https://developers.openai.com/api/docs/guides/your-data)를 참고한다.
+
 
 ```python
 first = client.responses.create(
@@ -77,7 +79,20 @@ follow_up = client.responses.create(
 print(follow_up.output_text)
 ```
 
-대화 항목을 애플리케이션에서 직접 보관하고 `input`에 다시 구성할 수도 있다. 두 방식의 선택은 상태 보관, 만료, 감사 기록, 데이터 관리 요구에 달려 있다. `previous_response_id`를 쓴다고 해서 앱의 사용자별 세션 관리가 자동으로 완성되는 것은 아니다.
+다른 방법은 애플리케이션이 이전 대화의 메시지를 저장해뒀다가, 다음 요청의 `input`에 다시 넣는 것이다.
+
+여기서 메시지는 앞서 보낸 **사용자 질문**과 그에 대한 **assistant 답변**을 말한다. 예를 들어 첫 요청에서 사용자가 "서울 여행 계획을 세워줘"라고 하고 assistant가 "3일 일정을 제안합니다"라고 답했다면, 다음 요청에는 그 두 메시지와 새 사용자 요청을 넣는다.
+
+```python
+response = client.responses.create(
+    model="gpt-4.1-mini",
+    input=[
+        {"role": "user", "content": "서울 여행 계획을 세워줘."},
+        {"role": "assistant", "content": "3일 일정을 제안합니다."},
+        {"role": "user", "content": "대중교통 위주로 바꿔줘."},
+    ],
+)
+```
 
 ## 함수 호출과 도구
 
