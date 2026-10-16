@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from html.parser import HTMLParser
 import builtins
+import hashlib
 import os
 import sys
 import sysconfig
@@ -11,6 +12,8 @@ from importlib.machinery import PathFinder
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
+
+from agent.models import DocumentationEvidence
 
 
 DOCS_BASE = "https://docs.python.org/3"
@@ -25,6 +28,7 @@ class _DefinitionExtractor(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.anchor = anchor
         self.found = False
+        self.matched = False
         self.depth = 0
         self.parts: list[str] = []
 
@@ -32,6 +36,7 @@ class _DefinitionExtractor(HTMLParser):
         attributes = dict(attrs)
         if not self.found and attributes.get("id") == self.anchor:
             self.found = True
+            self.matched = True
         elif self.found and self.depth == 0 and tag == "dt":
             self.found = False
         if self.found and tag == "dd":
@@ -91,20 +96,33 @@ def _is_standard_library(module: str) -> bool:
     return under_stdlib and "site-packages" not in origin_path and "dist-packages" not in origin_path
 
 
-def lookup_documentation(module: str, symbol: str) -> dict[str, str | bool]:
+def _source_id(url: str) -> str:
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:12]
+    return f"source-{digest}"
+
+
+def _title(module: str, symbol: str) -> str:
+    return f"Python documentation: {module}.{symbol}"
+
+
+def lookup_documentation(module: str, symbol: str) -> DocumentationEvidence:
     """Return an official Python documentation excerpt and URL for a target."""
     resolved = _official_doc_url(module, symbol)
     if resolved is None:
-        return {
-            "supported": False,
-            "module": module,
-            "symbol": symbol,
-            "excerpt": "이 대상은 지원하는 Python 내장 함수 또는 표준 라이브러리로 확인되지 않았습니다.",
-            "url": "",
-        }
+        return DocumentationEvidence(
+            source_id="",
+            status="unsupported",
+            module=module,
+            symbol=symbol,
+            title="",
+            excerpt="이 대상은 지원하는 Python 내장 함수 또는 표준 라이브러리로 확인되지 않았습니다.",
+            url="",
+        )
 
     url, anchor = resolved
     page_url = url.split("#", 1)[0]
+    source_id = _source_id(url)
+    title = _title(module, symbol)
     try:
         request = Request(page_url, headers={"User-Agent": "AI-Code-Decoder/1.0"})
         with urlopen(request, timeout=6) as response:
@@ -112,20 +130,32 @@ def lookup_documentation(module: str, symbol: str) -> dict[str, str | bool]:
         extractor = _DefinitionExtractor(anchor)
         extractor.feed(html)
         excerpt = " ".join(extractor.parts)
-        if not excerpt:
-            excerpt = "공식 문서 페이지는 확인했지만 해당 심볼의 발췌를 찾지 못했습니다."
-        return {
-            "supported": True,
-            "module": module,
-            "symbol": symbol,
-            "excerpt": excerpt[:2_000],
-            "url": url,
-        }
+        if extractor.matched and excerpt:
+            return DocumentationEvidence(
+                source_id=source_id,
+                status="exact_match",
+                module=module,
+                symbol=symbol,
+                title=title,
+                excerpt=excerpt[:2_000],
+                url=url,
+            )
+        return DocumentationEvidence(
+            source_id=source_id,
+            status="page_only",
+            module=module,
+            symbol=symbol,
+            title=title,
+            excerpt="공식 문서 페이지는 확인했지만 해당 심볼의 발췌를 찾지 못했습니다.",
+            url=page_url,
+        )
     except (HTTPError, URLError, TimeoutError, OSError, UnicodeError) as exc:
-        return {
-            "supported": True,
-            "module": module,
-            "symbol": symbol,
-            "excerpt": f"공식 문서를 지금 가져오지 못했습니다 ({type(exc).__name__}). URL을 확인해 주세요.",
-            "url": url,
-        }
+        return DocumentationEvidence(
+            source_id=source_id,
+            status="unavailable",
+            module=module,
+            symbol=symbol,
+            title=title,
+            excerpt=f"공식 문서를 지금 가져오지 못했습니다 ({type(exc).__name__}). URL을 확인해 주세요.",
+            url=url,
+        )

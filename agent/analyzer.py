@@ -50,6 +50,21 @@ def analyze_code(code: str, surrounding_context: str = "") -> CodeAnalysis:
         body=[statement for parsed in trees for statement in parsed.body],
         type_ignores=[item for parsed in trees for item in parsed.type_ignores],
     )
+    source_by_node_id = {
+        id(node): ("submitted_code", code)
+        for node in ast.walk(code_tree)
+    }
+    if surrounding_context.strip():
+        source_by_node_id.update(
+            {
+                id(node): ("surrounding_context", surrounding_context)
+                for node in ast.walk(trees[1])
+            }
+        )
+    parent_by_node_id: dict[int, ast.AST] = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parent_by_node_id[id(child)] = parent
 
     imports: list[str] = []
     imported_names: dict[str, tuple[str, str | None]] = {}
@@ -92,11 +107,35 @@ def analyze_code(code: str, surrounding_context: str = "") -> CodeAnalysis:
                 if isinstance(destination, ast.Name):
                     variable_types[destination.id] = assigned_value
 
-    def add_target(name: str, kind: str, module: str, symbol: str) -> None:
+    def add_target(
+        node: ast.Call,
+        name: str,
+        kind: str,
+        module: str,
+        symbol: str,
+    ) -> None:
         key = (name, module, symbol)
-        targets.setdefault(
-            key,
-            LearningTarget(name=name, kind=kind, module=module, symbol=symbol),
+        if key in targets:
+            return
+        source, source_text = source_by_node_id.get(
+            id(node), ("submitted_code", code)
+        )
+        parent = parent_by_node_id.get(id(node))
+        parent_parts = (
+            _attribute_parts(parent.func) if isinstance(parent, ast.Call) else []
+        )
+        targets[key] = LearningTarget(
+            target_id=f"target-{len(targets) + 1}",
+            name=name,
+            kind=kind,
+            module=module,
+            symbol=symbol,
+            expression=ast.get_source_segment(source_text, node) or name,
+            source=source,
+            line=getattr(node, "lineno", None),
+            end_line=getattr(node, "end_lineno", None),
+            resolution="resolved" if module and symbol else "unresolved",
+            used_as_input_of=".".join(parent_parts) or None,
         )
 
     call_names: list[str] = []
@@ -125,19 +164,31 @@ def analyze_code(code: str, surrounding_context: str = "") -> CodeAnalysis:
                         else 1
                     )
                     symbol = ".".join(parts[consumed:]) or module.rsplit(".", 1)[-1]
-                add_target(".".join(parts), "method" if len(parts) > 1 else "function", module, symbol)
+                add_target(
+                    node,
+                    ".".join(parts),
+                    "method" if len(parts) > 1 else "function",
+                    module,
+                    symbol,
+                )
             elif root in variable_types and len(parts) > 1:
                 module, type_name = variable_types[root]
                 symbol = ".".join([type_name, *parts[1:]])
-                add_target(".".join(parts), "method", module, symbol)
+                add_target(node, ".".join(parts), "method", module, symbol)
             elif callable(getattr(builtins, root, None)):
                 symbol = ".".join(parts)
-                add_target(".".join(parts), "function" if len(parts) == 1 else "method", "builtins", symbol)
+                add_target(
+                    node,
+                    ".".join(parts),
+                    "function" if len(parts) == 1 else "method",
+                    "builtins",
+                    symbol,
+                )
             elif len(parts) > 1 and parts[0][0:1].isupper():
                 # Best-effort resolution for common imported type calls such as Path.glob.
-                add_target(".".join(parts), "method", "", ".".join(parts[1:]))
+                add_target(node, ".".join(parts), "method", "", ".".join(parts[1:]))
             else:
-                add_target(".".join(parts), "function", "", ".".join(parts))
+                add_target(node, ".".join(parts), "function", "", ".".join(parts))
         elif isinstance(node, ast.JoinedStr):
             has_fstring = True
         elif isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):

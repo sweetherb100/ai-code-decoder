@@ -1,20 +1,40 @@
 """OpenAI Agents SDK function tools for static analysis and documentation."""
 
-import json
+from agents import RunContextWrapper, function_tool
 
-from agents import function_tool
-
-from agent.analyzer import analyze_code
-from agent.documentation import lookup_documentation
+from agent.pipeline import run_decode_pipeline
+from agent.run_context import DecodeRunContext
 
 
-@function_tool(name_override="analyze_code")
-def analyze_code_tool(code: str, surrounding_context: str) -> str:
-    """Statically analyze Python source and return imports, calls, syntax, and learning targets."""
-    return analyze_code(code, surrounding_context).model_dump_json()
+@function_tool(name_override="decode_code_pipeline", strict_mode=True)
+def decode_code_pipeline_tool(context: RunContextWrapper[DecodeRunContext]) -> str:
+    """Return verified learning evidence for the submitted Python code.
 
+    This is a read-only tool: it never executes, rewrites, stores, or otherwise
+    changes the submitted code. Use it exactly once before answering a request to
+    explain the submitted Python code. Do not use it to run code, modify code,
+    investigate third-party library APIs, or answer unrelated questions.
 
-@function_tool(name_override="lookup_documentation")
-def lookup_documentation_tool(module: str, symbol: str) -> str:
-    """Look up a Python builtin or standard-library symbol in official Python documentation."""
-    return json.dumps(lookup_documentation(module, symbol), ensure_ascii=False)
+    Static AST analysis has already validated the submitted code before the AI
+    call. This tool performs two internal steps in this fixed order:
+    deterministic learning-plan selection and official Python documentation
+    lookup for each selected target. It returns JSON with:
+    - analysis: imports, syntax, traceable learning targets, and analyzer notes;
+    - learning_plan: selected target IDs and their explanation order; and
+    - documentation: one evidence item per selected target.
+
+    Interpret documentation.status as follows: exact_match is citable evidence;
+    page_only, unsupported, and unavailable are not citable sources. Copy only
+    source_id, title, and URL from exact_match items into the final response.
+
+    This tool accepts no model-provided arguments. It reads the precomputed
+    analysis and audience level from the trusted run context so those values
+    cannot be changed by a tool call.
+    """
+    run = context.context
+    run.begin_pipeline_tool_call()
+    run.pipeline_evidence = run_decode_pipeline(
+        run.analysis,
+        run.level,
+    )
+    return run.pipeline_evidence.model_dump_json()
