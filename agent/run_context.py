@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Literal
 
-from agent.models import DecodePipelineEvidence
+from agent.models import CodeAnalysis, DecodePipelineEvidence
 
 
 AudienceLevel = Literal["Beginner", "Developer"]
@@ -14,11 +14,10 @@ AudienceLevel = Literal["Beginner", "Developer"]
 
 @dataclass
 class DecodeRunContext:
-    """Keep submitted input and verified pipeline evidence server-side."""
+    """Keep prevalidated input and verified pipeline evidence server-side."""
 
-    code: str
-    surrounding_context: str
     level: AudienceLevel
+    analysis: CodeAnalysis
     pipeline_evidence: DecodePipelineEvidence | None = None
     pipeline_tool_call_count: int = 0
     tool_call_audit: list[str] = field(default_factory=list)

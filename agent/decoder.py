@@ -8,6 +8,7 @@ from typing import Literal
 
 from agents import Agent, ModelSettings, Runner, set_tracing_disabled
 
+from agent.analyzer import analyze_code
 from agent.models import (
     CodeAnalysis,
     DecodeResult,
@@ -37,6 +38,7 @@ def decode_code(
     context: str = "",
 ) -> DecodeExecution:
     """Generate a decode response through the Agents SDK function-tool loop."""
+    analysis = analyze_code(code, context)
     tracing_enabled = os.getenv("OPENAI_AGENTS_ENABLE_TRACING", "").lower() in {
         "1",
         "true",
@@ -45,9 +47,8 @@ def decode_code(
     set_tracing_disabled(not tracing_enabled)
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
     run_context = DecodeRunContext(
-        code=code,
-        surrounding_context=context,
         level=level,
+        analysis=analysis,
     )
     agent = Agent(
         name="AI Code Decode Agent",
