@@ -71,10 +71,6 @@ Python 함수 외에도 SDK에서 다음 tool 유형을 사용할 수 있다.
 | MCP server | MCP server가 제공하는 tool을 연결해 사용 | [`agents_sdk_tool_mcp.py`](../script/agents_sdk_tool_mcp.py) |
 | Agent as a tool | 직접 만든 specialist Agent를 다른 Agent의 tool로 등록 | [`agents_sdk_tool_agent.py`](../script/agents_sdk_tool_agent.py) |
 
-직접 만든 Agent도 `specialist_agent.as_tool(...)`로 tool처럼 등록할 수 있다. 이 방식에서는 manager Agent가 specialist를 호출해 결과를 받은 뒤, 최종 답변의 흐름을 계속 관리한다. handoff는 specialist가 대화의 제어권을 이어받는 방식이다. 두 패턴의 코드 비교는 [`agents_sdk_handoff.py`](../script/agents_sdk_handoff.py)와 [`agents_sdk_tool_agent.py`](../script/agents_sdk_tool_agent.py)를 참고한다.
-
-MCP 예제는 카페 메뉴가 적힌 `script/samples/cafe_menu.md`를 읽어 음료를 추천한다. `npx`가 filesystem MCP server를 실행하며, 이 server는 전달된 `script/samples` 폴더 안의 파일 도구를 에이전트에 제공한다. 실행 환경에 **Python 3.10 이상과 Node.js/npm**이 필요하다. `requirements.txt`는 Python 3.10 이상에서 MCP SDK를 설치한다. Python 3.9 환경에서는 이 예제를 실행할 수 없다. Python 3.10은 2026년 10월 지원이 종료됐으므로, 새 환경은 지원 중인 Python 3.12 이상을 권장한다. 최초 실행 시 npx가 MCP server 패키지를 가져온다. 이처럼 앱별 연결부를 직접 작성하는 대신 MCP server가 제공하는 tool을 SDK에 연결해 사용할 수 있다.
-
 ## 주요 SDK 기능
 
 ### 에이전트 간 작업 연결
@@ -92,7 +88,7 @@ MCP 예제는 카페 메뉴가 적힌 `script/samples/cafe_menu.md`를 읽어 �
 
 ### Context
 
-`context`는 실행 중 tool과 훅 등에 애플리케이션 데이터를 전달하는 방법이다. 사용자 세션, 데이터베이스 연결, 요청별 상태처럼 model 프롬프트에 그대로 넣을 필요가 없는 런타임 정보를 전달하는 데 쓸 수 있다. model에 보여줄 대화 내용 및 `instructions`와 애플리케이션 런타임 상태를 구분해 설계한다.
+`context`는 에이전트를 실행하는 프로그램이 실행 중 필요한 정보를 tool에 건네는 통로다. 예를 들어 로그인한 사용자의 이름이나 현재 요청의 상태를 담을 수 있다. `RunContextWrapper`는 SDK가 이 정보를 tool에 전달할 때 사용하는 포장 객체이며, tool 안에서 정보를 꺼내 쓴다. 이 정보가 자동으로 model에 전달되는 것은 아니다. tool이 정보를 사용해 돌려준 결과가 model의 답변에 활용된다.
 
 ### Guardrails
 
@@ -100,65 +96,8 @@ Guardrail은 입력이나 출력을 검사해 정책에 맞지 않는 처리를 
 
 ### Tracing
 
-Tracing은 실행 중 model 호출, tool 사용, handoff 같은 단계를 기록해 흐름을 살펴보는 기능이다. 예상과 다른 tool 선택이나 실패 지점을 찾을 때 유용하다. trace에 프롬프트·tool 입출력 등 민감한 정보가 포함될 수 있으므로, 데이터 취급 정책에 맞게 활성화하고 접근을 관리한다.
+Tracing은 에이전트 실행 중 model 호출, tool 사용, handoff 같은 단계를 기록해 흐름을 살펴보는 기능이다. 예상과 다른 tool 선택이나 실패 지점을 찾을 때 유용하다. trace에 프롬프트와 tool 입출력 등 민감한 정보가 포함될 수 있으므로, 데이터 취급 정책에 맞게 사용하고 접근을 관리한다.
 
-### Streaming
-
-Streaming은 실행 이벤트를 생성되는 대로 받아 UI에 전달할 때 사용한다. 최종 결과만 보여주는 대신 텍스트나 tool 진행 상태를 점진적으로 표시할 수 있다. 이벤트를 화면에 표시할 때 중간 이벤트와 최종 답변을 구분한다.
-
-## 권장하는 개발 순서
-
-1. 에이전트가 해결할 한 가지 업무와 성공 기준을 정한다.
-2. `tools` 없이 최소 에이전트를 실행하고 `instructions`를 다듬는다.
-3. 읽기 전용 data tool부터 추가하고, 인수·오류·권한을 검증한다.
-4. 실제 사용자 요청 사례로 결과를 평가한다.
-5. 필요에 따라 구조화된 출력, guardrail, streaming, tracing을 더한다.
-6. 단일 에이전트로 다루기 어려운 이유가 분명할 때 handoff나 agent-as-tool 패턴을 적용한다.
-
-`model`은 처음부터 지나치게 작은 모델로 제한하기보다 업무 기준선을 먼저 확인한 뒤, 품질을 유지하면서 비용과 지연 시간을 줄일 수 있는지 평가한다. 운영 전에는 정상 사례뿐 아니라 불완전한 입력, tool 실패, 거부되어야 할 요청도 평가 사례에 포함한다.
-
-## 직접 실행해보기
-
-예제는 저장소 루트에서 실행한다. MCP 실습을 포함하려면 Python 3.12를 설치한 후, 저장소 루트에서 기존 가상환경을 새로 만든다. 아래 `rm -rf .venv` 명령은 저장소 루트의 `.venv`만 지운다. 가상환경에 필요한 패키지나 다른 파일을 보관한 적이 있다면 먼저 별도로 옮긴다.
-
-```bash
-python3.12 --version
-deactivate  # 기존 가상환경이 활성화된 경우
-rm -rf .venv
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-cp .env.example .env
-```
-
-`requirements.txt`에는 Agents SDK, `python-dotenv`와 MCP SDK가 포함되어 있다. 루트의 `.env`에 `OPENAI_API_KEY`를 설정한다.
-
-각 예제를 실행한다.
-
-```bash
-python script/agents_sdk.py
-python script/agents_sdk_tool_function.py
-python script/agents_sdk_tool_web_search.py
-python script/agents_sdk_tool_mcp.py
-python script/agents_sdk_tool_agent.py
-python script/agents_sdk_structured_output.py
-python script/agents_sdk_handoff.py
-python script/agents_sdk_guardrails.py
-```
-
-| 파일 | 실습 내용 |
-| --- | --- |
-| [`agents_sdk.py`](../script/agents_sdk.py) | `Agent`를 만들고 `Runner`로 한 번 실행 |
-| [`agents_sdk_tool_function.py`](../script/agents_sdk_tool_function.py) | `@function_tool`로 간단한 Python 함수를 tool로 등록 |
-| [`agents_sdk_tool_web_search.py`](../script/agents_sdk_tool_web_search.py) | OpenAI hosted Web Search tool 사용 |
-| [`agents_sdk_tool_mcp.py`](../script/agents_sdk_tool_mcp.py) | MCP가 카페 메뉴 파일을 읽고, 조건에 맞는 음료를 추천. Node.js/npm 필요 |
-| [`agents_sdk_tool_agent.py`](../script/agents_sdk_tool_agent.py) | 직접 만든 Agent를 specialist tool로 사용 |
-| [`agents_sdk_structured_output.py`](../script/agents_sdk_structured_output.py) | Pydantic model로 결과 형식 지정 |
-| [`agents_sdk_handoff.py`](../script/agents_sdk_handoff.py) | 전문 에이전트로 handoff, agent-as-tool 호출 비교 |
-| [`agents_sdk_guardrails.py`](../script/agents_sdk_guardrails.py) | 입력 guardrail tripwire로 요청 차단 |
-
-예제는 `gpt-4.1-mini`를 사용한다. 다른 모델을 쓰려면 각 파일의 `model` 값을 바꾼다. `agents_sdk_guardrails.py`의 키워드 검사는 guardrail API 흐름을 보여주는 교육용 예시이며, 실제 민감정보 탐지 정책을 대신하지 않는다. SDK tracing은 기본 동작으로 실행 추적을 기록할 수 있으므로 민감한 입력으로 실습하지 않는다.
 
 ## 참고 자료
 
@@ -169,24 +108,7 @@ python script/agents_sdk_guardrails.py
 - 공식 tool 가이드: [Tools](https://openai.github.io/openai-agents-python/tools/) · [MCP](https://openai.github.io/openai-agents-python/mcp/)
 - 프로젝트의 관련 문서: [Function calling / tool calling](./function_calling.md) · [Responses API](./responses_api.md)
 
-> 참고 범위: 영상의 YouTube 페이지에서 자막·전문을 직접 가져오지 못했다. 따라서 이 문서는 영상의 타임스탬프별 축어 요약이 아니라, 요청한 튜토리얼 저장소의 주제 구성과 OpenAI 실용 가이드에 맞춰 SDK 개념을 정리한 학습 문서다.
-
 ## Appendix
-
-### 튜토리얼 저장소의 학습 경로
-
-제공된 저장소는 아래 흐름으로 예제를 나눈다. 각 파일은 저장소에서 직접 확인할 수 있다.
-
-| 단계 | 주제 | 예제 |
-| --- | --- | --- |
-| 1 | 기본 에이전트 | [`1_basic.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/1_basic.py) |
-| 2 | 대화, 스트리밍, 채팅 UI | [`2_1_chat.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/2_1_chat.py), [`2_2_chat_stream.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/2_2_chat_stream.py), [`2_3_chat_ui.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/2_3_chat_ui.py) |
-| 3 | 함수·내장 tool, MCP, agent-as-tool | [`3_1_tool.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/3_1_tool.py), [`3_2_tool_mcp.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/3_2_tool_mcp.py), [`3_3_tool_agent.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/3_3_tool_agent.py) |
-| 4 | 구조화 출력, Context, Guardrail, Handoff | [`4_1_structured_output.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/4_1_structured_output.py), [`4_2_context.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/4_2_context.py), [`4_3_guardrail.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/4_3_guardrail.py), [`4_4_handoff.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/4_4_handoff.py) |
-| 5 | 여행 일정 수립 에이전트 통합 | [`5_final_agent.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/5_final_agent.py) |
-| 6 | 다른 모델 공급자 연동과 tracing | [`6_1_gemini.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/6_1_gemini.py), [`6_2_tracing.py`](https://github.com/dabidstudio/openai-agents-sdk-tutorial/blob/main/6_2_tracing.py) |
-
-저장소 README의 실행 예시는 `uv add openai-agents streamlit python-dotenv`, `.env`에 `OPENAI_API_KEY` 설정, `uv run 1_basic.py` 실행 순서다. 외부 모델 공급자 연동은 별도 설정이 필요하므로 해당 예제의 최신 코드와 공식 SDK 문서를 확인한다.
 
 ### SDK와 직접 API 호출의 구분
 
