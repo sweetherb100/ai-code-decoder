@@ -1,48 +1,28 @@
-"""함수 도구와 실행 context를 에이전트에 전달하는 예제."""
+"""고정된 사실을 돌려주는 함수 tool의 기본 예제."""
 
-from dataclasses import dataclass
 from pathlib import Path
 
-from agents import Agent, RunContextWrapper, Runner, function_tool
+from agents import Agent, Runner, function_tool
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
-@dataclass
-class AppContext:
-    """도구가 사용할 애플리케이션 상태 예시."""
-
-    course_catalog: dict[str, str]
-
-
 @function_tool
-def find_lesson(ctx: RunContextWrapper[AppContext], topic: str) -> str:
-    """강의 주제에 해당하는 로컬 실습 파일을 찾는다."""
-    return ctx.context.course_catalog.get(topic.lower(), "해당 주제의 실습을 찾지 못했습니다.")
+def history_fun_fact() -> str:
+    """짧은 역사 사실 하나를 반환한다."""
+    return "상어는 나무보다 먼저 지구에 나타났습니다."
 
 
 def main() -> None:
-    context = AppContext(
-        course_catalog={
-            "agent": "script/agents_sdk.py",
-            "tool": "script/agents_sdk_tools.py",
-            "handoff": "script/agents_sdk_handoff.py",
-            "guardrail": "script/agents_sdk_guardrails.py",
-            "structured output": "script/agents_sdk_structured_output.py",
-        }
-    )
-    agent = Agent[AppContext](
-        name="실습 안내 에이전트",
-        instructions=(
-            "이 프로젝트의 실습 파일 위치를 안내합니다. "
-            "경로를 물으면 find_lesson 도구를 사용하고 결과에 없는 경로는 만들지 마세요."
-        ),
-        tools=[find_lesson],
+    agent = Agent(
+        name="역사 튜터",
+        instructions="역사 질문에 답하세요. 도움이 되면 history_fun_fact 도구를 사용하세요.",
+        tools=[history_fun_fact],
         model="gpt-4.1-mini",
     )
 
-    result = Runner.run_sync(agent, "tool 실습 파일은 어디 있어?", context=context)
+    result = Runner.run_sync(agent, "고대 생명에 관해 놀라운 사실 하나 알려줘.")
     print(result.final_output)
 
 

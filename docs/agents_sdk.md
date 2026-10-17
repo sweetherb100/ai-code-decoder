@@ -45,26 +45,35 @@ from agents import Agent, Runner, function_tool
 
 
 @function_tool
-def lookup_course(topic: str) -> str:
-    """주제에 맞는 강의 자료 위치를 찾는다."""
-    catalog = {
-        "agents": "docs/agents_sdk.md",
-        "tools": "docs/function_calling.md",
-    }
-    return catalog.get(topic.lower(), "자료를 찾지 못했습니다.")
+def history_fun_fact() -> str:
+    """짧은 역사 사실 하나를 반환한다."""
+    return "상어는 나무보다 먼저 지구에 나타났습니다."
 
 
 agent = Agent(
-    name="자료 안내 에이전트",
-    instructions="자료 위치를 물으면 lookup_course를 사용하세요.",
-    tools=[lookup_course],
+    name="역사 튜터",
+    instructions="역사 질문에 답하세요. 도움이 되면 history_fun_fact 도구를 사용하세요.",
+    tools=[history_fun_fact],
 )
 
-result = Runner.run_sync(agent, "도구 설명 자료는 어디 있나요?")
+result = Runner.run_sync(agent, "고대 생명에 관해 놀라운 사실 하나 알려줘.")
 print(result.final_output)
 ```
 
-tool 설명은 model이 언제 무엇을 사용할지 판단하도록 돕는다. 실제 함수는 애플리케이션의 권한으로 실행되므로, 함수 안에서 인수와 사용자 권한, 부작용을 확인해야 한다. 특히 이메일 발송이나 데이터 변경 같은 action tool은 실행 전 확인 절차를 두는 것이 안전하다.
+`@function_tool`은 Python 함수를 tool로 등록한다. model은 `instructions`와 함수 설명을 참고해 호출 여부를 선택하고, `Runner`가 함수를 실행해 결과를 model에 돌려준다.
+
+Python 함수 외에도 SDK에서 다음 tool 유형을 사용할 수 있다.
+
+| tool 유형 | 어디서 정의·실행되는가 | 실습 |
+| --- | --- | --- |
+| 함수 tool (`@function_tool`) | Python 함수로 정의하고 앱의 프로세스에서 실행 | [`agents_sdk_tools.py`](../script/agents_sdk_tools.py) |
+| 웹 검색 (`WebSearchTool`) | OpenAI가 호스팅하며 검색 실행 | [`agents_sdk_web_search.py`](../script/agents_sdk_web_search.py) |
+| MCP server | MCP server가 제공하는 tool을 연결해 사용 | [`agents_sdk_mcp.py`](../script/agents_sdk_mcp.py) |
+| Agent as a tool | 직접 만든 specialist Agent를 다른 Agent의 tool로 등록 | [`agents_sdk_agent_as_tool.py`](../script/agents_sdk_agent_as_tool.py) |
+
+직접 만든 Agent도 `specialist_agent.as_tool(...)`로 tool처럼 등록할 수 있다. 이 방식에서는 manager Agent가 specialist를 호출해 결과를 받은 뒤, 최종 답변의 흐름을 계속 관리한다. handoff는 specialist가 대화의 제어권을 이어받는 방식이다. 두 패턴의 코드 비교는 [`agents_sdk_handoff.py`](../script/agents_sdk_handoff.py)와 [`agents_sdk_agent_as_tool.py`](../script/agents_sdk_agent_as_tool.py)를 참고한다.
+
+MCP 예제는 `script/samples` 폴더에 접근을 제한한 파일 서버를 `npx`로 실행한다. 실행 환경에 Node.js/npm이 필요하며, 최초 실행 시 npx가 MCP server 패키지를 가져온다. 해당 예제에서 model이 파일 내용을 검색할 수 있으므로, MCP server에 제공하는 경로에는 노출해도 되는 파일만 둔다.
 
 ## 주요 SDK 기능
 
@@ -122,6 +131,9 @@ cp .env.example .env
 ```bash
 python script/agents_sdk.py
 python script/agents_sdk_tools.py
+python script/agents_sdk_web_search.py
+python script/agents_sdk_mcp.py
+python script/agents_sdk_agent_as_tool.py
 python script/agents_sdk_structured_output.py
 python script/agents_sdk_handoff.py
 python script/agents_sdk_guardrails.py
@@ -130,7 +142,10 @@ python script/agents_sdk_guardrails.py
 | 파일 | 실습 내용 |
 | --- | --- |
 | [`agents_sdk.py`](../script/agents_sdk.py) | `Agent`를 만들고 `Runner`로 한 번 실행 |
-| [`agents_sdk_tools.py`](../script/agents_sdk_tools.py) | `@function_tool` 함수와 `context` 전달 |
+| [`agents_sdk_tools.py`](../script/agents_sdk_tools.py) | `@function_tool`로 간단한 Python 함수를 tool로 등록 |
+| [`agents_sdk_web_search.py`](../script/agents_sdk_web_search.py) | OpenAI hosted Web Search tool 사용 |
+| [`agents_sdk_mcp.py`](../script/agents_sdk_mcp.py) | 로컬 stdio MCP filesystem server 연결. Node.js/npm 필요 |
+| [`agents_sdk_agent_as_tool.py`](../script/agents_sdk_agent_as_tool.py) | 직접 만든 Agent를 specialist tool로 사용 |
 | [`agents_sdk_structured_output.py`](../script/agents_sdk_structured_output.py) | Pydantic model로 결과 형식 지정 |
 | [`agents_sdk_handoff.py`](../script/agents_sdk_handoff.py) | 전문 에이전트로 handoff, agent-as-tool 호출 비교 |
 | [`agents_sdk_guardrails.py`](../script/agents_sdk_guardrails.py) | 입력 guardrail tripwire로 요청 차단 |
@@ -143,6 +158,7 @@ python script/agents_sdk_guardrails.py
 - 예제 코드 및 주제별 실습: [dabidstudio/openai-agents-sdk-tutorial](https://github.com/dabidstudio/openai-agents-sdk-tutorial)
 - 실용적인 설계 가이드: [A practical guide to building agents (PDF)](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf)
 - 공식 SDK 문서: [OpenAI Agents SDK for Python](https://openai.github.io/openai-agents-python/) · [Quickstart](https://openai.github.io/openai-agents-python/quickstart/)
+- 공식 tool 가이드: [Tools](https://openai.github.io/openai-agents-python/tools/) · [MCP](https://openai.github.io/openai-agents-python/mcp/)
 - 프로젝트의 관련 문서: [Function calling / tool calling](./function_calling.md) · [Responses API](./responses_api.md)
 
 > 참고 범위: 영상의 YouTube 페이지에서 자막·전문을 직접 가져오지 못했다. 따라서 이 문서는 영상의 타임스탬프별 축어 요약이 아니라, 요청한 튜토리얼 저장소의 주제 구성과 OpenAI 실용 가이드에 맞춰 SDK 개념을 정리한 학습 문서다.
