@@ -50,4 +50,11 @@ app.py              Streamlit 데모
 
 ## 학습 문서
 
-- [OpenAI Function Calling / Tool Calling](docs/function-calling.md): 개념, Responses API 예제, 실무 설계 체크리스트
+- [OpenAI Agents SDK](docs/agents_sdk.md): 에이전트 구성, 도구, handoff, guardrails, tracing
+- [OpenAI Function Calling / Tool Calling](docs/function_calling.md): 개념, Responses API 예제, 실무 설계 체크리스트
+- [Responses API](docs/responses_api.md): 요청, 대화 상태, 도구, 구조화된 출력
+- [Langfuse 실험](docs/langfuse_experiment.md): tracing, prompt management, dataset과 SDK experiment 연결
+
+Agents SDK 예제는 `script/agents_sdk*.py`에서 확인할 수 있습니다. 자세한 실행 방법은 [Agents SDK 실습 문서](docs/agents_sdk.md#직접-실행해보기)를 참고하세요.
+Langfuse experiment 예제는 `python script/langfuse_experiment.py`로 실행합니다. prompt와 dataset 사전 준비 방법은 [Langfuse 실습 문서](docs/langfuse_experiment.md)를 참고하세요.
+Langfuse에서 prompt를 불러와 단독 실행하는 간단한 예제는 `python script/langfuse_prompt.py`입니다.
