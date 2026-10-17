@@ -6,6 +6,8 @@
 
 > **Responses API는 하나의 인터페이스에서 텍스트 응답, 대화 맥락, 도구 호출, 구조화된 결과를 주고받는 API다.**
 
+Responses API를 직접 호출할지 Agents SDK를 사용할지는 에이전트 실행 루프를 앱에서 직접 관리할지에 따라 결정한다. 짧은 요청·응답이나 직접 제어가 목적이면 Responses API를, 여러 turn의 tool 실행·handoff·guardrail을 SDK에 맡기려면 Agents SDK를 검토한다. 결정 기준과 예시는 [Responses API와 Agents SDK 비교](./agents_sdk.md#responses-api와-agents-sdk-중-선택하기)를 참고한다.
+
 Chat Completions에서는 주로 `messages`를 보내고 `choices`의 메시지를 받는다. Responses API에서는 `input`을 보내고 텍스트, 함수 호출, 내장 도구 결과, 추론 항목 등이 포함될 수 있는 `output`을 받는다. 따라서 응답을 항상 단일 텍스트로 가정하지 않고 출력 항목의 종류를 살펴야 한다.
 
 ## 전체 흐름

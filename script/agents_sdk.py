@@ -10,12 +10,12 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 def main() -> None:
     agent = Agent(
-        name="학습 도우미",
-        instructions="AI 에이전트 개념을 한국어로 간결하게 설명하세요.",
+        name="역사 튜터",
+        instructions="역사 질문에 명확하고 간결하게 답하세요.",
         model="gpt-4.1-mini",
     )
 
-    result = Runner.run_sync(agent, "에이전트와 일반 챗봇의 차이를 설명해줘.")
+    result = Runner.run_sync(agent, "로마 제국은 언제 멸망했나요?")
     print(result.final_output)
 
 

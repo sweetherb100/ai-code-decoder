@@ -4,21 +4,19 @@
 
 ## 한 줄로 이해하기
 
-> **Agents SDK는 model, instructions, tools를 묶어 에이전트 실행 루프와 여러 에이전트 간 협업을 구성하는 Python 프레임워크다.**
+> **Agents SDK는 에이전트의 실행 루프와 여러 에이전트 간 협업을 구성하는 Python 프레임워크다.**
 
 일반적인 단일 LLM 요청은 입력에 대한 답을 한 번 생성한다. 에이전트는 작업을 진행하며 tool을 선택하고, 결과를 반영해 다음 단계를 수행한 뒤 종료 조건에 도달하면 결과를 반환한다. SDK의 `Runner`가 이 실행 루프를 관리한다.
 
 ## model, instructions, tools
 
-OpenAI의 실용 가이드에서는 에이전트를 **model, tools, instructions**의 조합으로 소개한다. `model`이 작업의 다음 단계를 판단하고, `tools`가 데이터 조회나 외부 작업을 수행하며, `instructions`가 에이전트의 역할과 행동 규칙을 정한다. 아래 한국어 설명과 영어 용어를 함께 익혀두면 공식 문서의 용어와 코드 설정을 바로 연결할 수 있다.
+OpenAI의 실용 가이드는 `model`, `tools`, `instructions` 세 가지를 에이전트의 기본 구성 요소로 설명한다. 에이전트를 구분하는 핵심은 model이 workflow 진행을 판단하고, 필요하면 tools를 선택해 작업을 이어가는 실행 흐름이다. Responses API는 그 요청과 응답을 직접 다루는 인터페이스이고, Agents SDK는 `Runner`가 tool 실행과 후속 turn을 관리하도록 돕는다.
 
 | 공식 용어 | 역할 | 예시 |
 | --- | --- | --- |
-| `model` | 작업 흐름을 판단하고 다음 행동을 선택 | 질문에 답하거나 tool 선택 |
+| `model` | 응답을 생성하고, 에이전트 흐름에서는 다음 행동을 판단 | 질문에 답하거나 tool 선택 |
 | `tools` | 외부 데이터 조회 또는 작업 수행 | 함수, 웹 검색, MCP 서버 |
 | `instructions` | 에이전트의 역할·절차·제약을 정의 | 모르는 정보는 추측하지 않기 |
-
-에이전트는 모든 LLM 기능에 필요한 것은 아니다. 절차가 명확하고 입력·출력이 결정적인 작업은 일반 코드나 규칙 기반 자동화가 더 단순할 수 있다. 모호한 판단, 예외가 많은 절차, 비정형 데이터가 포함된 워크플로에서 에이전트 접근이 유용할 수 있다.
 
 ## 기본 실행
 
@@ -28,11 +26,11 @@ OpenAI의 실용 가이드에서는 에이전트를 **model, tools, instructions
 from agents import Agent, Runner
 
 agent = Agent(
-    name="학습 도우미",
-    instructions="질문에 간결하게 답하고, 모르는 내용은 모른다고 말하세요.",
+    name="역사 튜터",
+    instructions="역사 질문에 명확하고 간결하게 답하세요.",
 )
 
-result = Runner.run_sync(agent, "에이전트란 무엇인가요?")
+result = Runner.run_sync(agent, "로마 제국은 언제 멸망했나요?")
 print(result.final_output)
 ```
 
@@ -185,3 +183,35 @@ model이 답변 또는 tool 사용을 선택
 ```
 
 Guardrail은 입력·출력이나 tool 흐름을 검증하고, tracing은 실행 단계를 관찰할 수 있도록 기록한다. 두 기능은 에이전트의 실제 동작을 검증하고 디버깅하는 데 사용한다.
+
+### Responses API와 Agents SDK 중 선택하기
+
+두 선택지는 같은 일을 하는 서로 다른 model이 아니다. **Responses API는 model 요청과 응답을 직접 다루는 API이고, Agents SDK는 에이전트 실행을 관리하는 런타임이다.** Agents SDK는 OpenAI model을 사용할 때 기본적으로 Responses API를 호출하면서, 그 위에서 turn 진행과 tool 실행 같은 흐름을 관리한다.
+
+| 판단 기준 | Responses API 직접 호출 | Agents SDK |
+| --- | --- | --- |
+| 적합한 흐름 | 한 번의 요청·응답, 또는 앱이 명시적으로 관리하는 짧은 흐름 | tool 호출과 후속 응답이 이어지는 에이전트 실행 루프 |
+| 실행 루프 | 앱이 다음 API 호출, tool 실행, 종료 시점을 정함 | `Runner`가 응답에 따라 tool 실행과 다음 turn을 진행 |
+| tool 처리 | API가 제공하는 hosted tool은 설정에 따라 API가 실행. 사용자 정의 function은 앱이 실행·결과 전달 | SDK가 등록된 function tool 실행과 결과 연결을 관리 |
+| 상태와 대화 | `input`, `previous_response_id` 또는 앱이 보관한 이력으로 직접 관리 | `Runner` 실행, `context`, 필요하면 `Session`으로 관리 |
+| 여러 에이전트 | handoff나 에이전트 조율을 직접 구현 | handoff와 agent-as-tool 기능을 제공 |
+| 선택 이유 | 흐름을 직접 제어하고 싶거나, 단일 호출·간단한 연동이 목적 | guardrail, handoff, session, tool loop 등 에이전트 기능을 활용하고 싶음 |
+
+**결정적인 일반 작업은 Responses API를 고르는 근거가 되지 않는다.** 입력을 규칙대로 변환하는 것만 필요하면 일반 코드가 더 간단하다. 텍스트 해석이나 생성은 필요하지만 호출 흐름이 한 번으로 충분하면 Responses API를 고려한다. model이 tool을 고르고 결과를 읽은 뒤 다음 행동을 이어가야 하면 Agents SDK가 편리하다.
+
+빠른 판단은 다음 질문으로 할 수 있다.
+
+1. LLM이 필요한가? 필요하지 않다면 일반 코드나 규칙 기반 자동화를 사용한다.
+2. LLM이 필요하다면, 앱이 요청·tool·상태·반복을 직접 제어해야 하는가? 그렇다면 Responses API를 직접 호출한다.
+3. tool 사용과 여러 turn의 실행 루프를 SDK에 맡기거나 handoff·guardrail·session 기능이 필요한가? 그렇다면 Agents SDK를 사용한다.
+
+두 방식을 한 제품에서 함께 사용해도 된다. 예를 들어 대화형 에이전트 흐름은 Agents SDK로 관리하고, 별도의 단순 분류나 한 번의 요약 요청은 Responses API로 처리할 수 있다.
+
+| 예시 작업 | 시작점 |
+| --- | --- |
+| 입력 형식 검사, 정해진 규칙에 따른 값 변환 | 일반 Python 코드 |
+| 회의록을 한 번 요약하거나 항목을 JSON으로 추출 | Responses API |
+| 모델이 사내 조회 함수를 선택해 실행하고 결과를 바탕으로 답변 | Responses API 또는 Agents SDK. 앱이 루프를 직접 소유하면 전자, SDK 실행 루프를 맡기면 후자 |
+| 접수 agent가 요청을 분류해 전문 agent로 넘김 | Agents SDK |
+
+자세한 내용은 [Responses API 문서](./responses_api.md)와 본문의 [직접 실행해보기](#직접-실행해보기)를 참고한다. 공식 비교는 [Agents SDK 소개의 Responses API 비교](https://openai.github.io/openai-agents-python/#agents-sdk-or-responses-api)를 참고한다.
