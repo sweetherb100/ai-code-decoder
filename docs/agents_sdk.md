@@ -66,14 +66,14 @@ Python 함수 외에도 SDK에서 다음 tool 유형을 사용할 수 있다.
 
 | tool 유형 | 어디서 정의·실행되는가 | 실습 |
 | --- | --- | --- |
-| 함수 tool (`@function_tool`) | Python 함수로 정의하고 앱의 프로세스에서 실행 | [`agents_sdk_tools.py`](../script/agents_sdk_tools.py) |
-| 웹 검색 (`WebSearchTool`) | OpenAI가 호스팅하며 검색 실행 | [`agents_sdk_web_search.py`](../script/agents_sdk_web_search.py) |
-| MCP server | MCP server가 제공하는 tool을 연결해 사용 | [`agents_sdk_mcp.py`](../script/agents_sdk_mcp.py) |
-| Agent as a tool | 직접 만든 specialist Agent를 다른 Agent의 tool로 등록 | [`agents_sdk_agent_as_tool.py`](../script/agents_sdk_agent_as_tool.py) |
+| 함수 tool (`@function_tool`) | Python 함수로 정의하고 앱의 프로세스에서 실행 | [`agents_sdk_tool_function.py`](../script/agents_sdk_tool_function.py) |
+| 웹 검색 (`WebSearchTool`) | OpenAI가 호스팅하며 검색 실행 | [`agents_sdk_tool_web_search.py`](../script/agents_sdk_tool_web_search.py) |
+| MCP server | MCP server가 제공하는 tool을 연결해 사용 | [`agents_sdk_tool_mcp.py`](../script/agents_sdk_tool_mcp.py) |
+| Agent as a tool | 직접 만든 specialist Agent를 다른 Agent의 tool로 등록 | [`agents_sdk_tool_agent.py`](../script/agents_sdk_tool_agent.py) |
 
-직접 만든 Agent도 `specialist_agent.as_tool(...)`로 tool처럼 등록할 수 있다. 이 방식에서는 manager Agent가 specialist를 호출해 결과를 받은 뒤, 최종 답변의 흐름을 계속 관리한다. handoff는 specialist가 대화의 제어권을 이어받는 방식이다. 두 패턴의 코드 비교는 [`agents_sdk_handoff.py`](../script/agents_sdk_handoff.py)와 [`agents_sdk_agent_as_tool.py`](../script/agents_sdk_agent_as_tool.py)를 참고한다.
+직접 만든 Agent도 `specialist_agent.as_tool(...)`로 tool처럼 등록할 수 있다. 이 방식에서는 manager Agent가 specialist를 호출해 결과를 받은 뒤, 최종 답변의 흐름을 계속 관리한다. handoff는 specialist가 대화의 제어권을 이어받는 방식이다. 두 패턴의 코드 비교는 [`agents_sdk_handoff.py`](../script/agents_sdk_handoff.py)와 [`agents_sdk_tool_agent.py`](../script/agents_sdk_tool_agent.py)를 참고한다.
 
-MCP 예제는 `script/samples` 폴더에 접근을 제한한 파일 서버를 `npx`로 실행한다. 실행 환경에 Node.js/npm이 필요하며, 최초 실행 시 npx가 MCP server 패키지를 가져온다. 해당 예제에서 model이 파일 내용을 검색할 수 있으므로, MCP server에 제공하는 경로에는 노출해도 되는 파일만 둔다.
+MCP 예제는 카페 메뉴가 적힌 `script/samples/cafe_menu.md`를 읽어 음료를 추천한다. `npx`가 filesystem MCP server를 실행하며, 이 server는 전달된 `script/samples` 폴더 안의 파일 도구를 에이전트에 제공한다. 실행 환경에 **Python 3.10 이상과 Node.js/npm**이 필요하다. `requirements.txt`는 Python 3.10 이상에서 MCP SDK를 설치한다. Python 3.9 환경에서는 이 예제를 실행할 수 없다. Python 3.10은 2026년 10월 지원이 종료됐으므로, 새 환경은 지원 중인 Python 3.12 이상을 권장한다. 최초 실행 시 npx가 MCP server 패키지를 가져온다. 이처럼 앱별 연결부를 직접 작성하는 대신 MCP server가 제공하는 tool을 SDK에 연결해 사용할 수 있다.
 
 ## 주요 SDK 기능
 
@@ -119,21 +119,29 @@ Streaming은 실행 이벤트를 생성되는 대로 받아 UI에 전달할 때 
 
 ## 직접 실행해보기
 
-예제는 저장소 루트에서 실행한다. `requirements.txt`에 Agents SDK와 `python-dotenv`가 포함되어 있다. 가상 환경을 활성화한 뒤 의존성을 설치하고, 루트의 `.env`에 `OPENAI_API_KEY`를 설정한다.
+예제는 저장소 루트에서 실행한다. MCP 실습을 포함하려면 Python 3.12를 설치한 후, 저장소 루트에서 기존 가상환경을 새로 만든다. 아래 `rm -rf .venv` 명령은 저장소 루트의 `.venv`만 지운다. 가상환경에 필요한 패키지나 다른 파일을 보관한 적이 있다면 먼저 별도로 옮긴다.
 
 ```bash
+python3.12 --version
+deactivate  # 기존 가상환경이 활성화된 경우
+rm -rf .venv
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 cp .env.example .env
 ```
+
+`requirements.txt`에는 Agents SDK, `python-dotenv`와 MCP SDK가 포함되어 있다. 루트의 `.env`에 `OPENAI_API_KEY`를 설정한다.
 
 각 예제를 실행한다.
 
 ```bash
 python script/agents_sdk.py
-python script/agents_sdk_tools.py
-python script/agents_sdk_web_search.py
-python script/agents_sdk_mcp.py
-python script/agents_sdk_agent_as_tool.py
+python script/agents_sdk_tool_function.py
+python script/agents_sdk_tool_web_search.py
+python script/agents_sdk_tool_mcp.py
+python script/agents_sdk_tool_agent.py
 python script/agents_sdk_structured_output.py
 python script/agents_sdk_handoff.py
 python script/agents_sdk_guardrails.py
@@ -142,10 +150,10 @@ python script/agents_sdk_guardrails.py
 | 파일 | 실습 내용 |
 | --- | --- |
 | [`agents_sdk.py`](../script/agents_sdk.py) | `Agent`를 만들고 `Runner`로 한 번 실행 |
-| [`agents_sdk_tools.py`](../script/agents_sdk_tools.py) | `@function_tool`로 간단한 Python 함수를 tool로 등록 |
-| [`agents_sdk_web_search.py`](../script/agents_sdk_web_search.py) | OpenAI hosted Web Search tool 사용 |
-| [`agents_sdk_mcp.py`](../script/agents_sdk_mcp.py) | 로컬 stdio MCP filesystem server 연결. Node.js/npm 필요 |
-| [`agents_sdk_agent_as_tool.py`](../script/agents_sdk_agent_as_tool.py) | 직접 만든 Agent를 specialist tool로 사용 |
+| [`agents_sdk_tool_function.py`](../script/agents_sdk_tool_function.py) | `@function_tool`로 간단한 Python 함수를 tool로 등록 |
+| [`agents_sdk_tool_web_search.py`](../script/agents_sdk_tool_web_search.py) | OpenAI hosted Web Search tool 사용 |
+| [`agents_sdk_tool_mcp.py`](../script/agents_sdk_tool_mcp.py) | MCP가 카페 메뉴 파일을 읽고, 조건에 맞는 음료를 추천. Node.js/npm 필요 |
+| [`agents_sdk_tool_agent.py`](../script/agents_sdk_tool_agent.py) | 직접 만든 Agent를 specialist tool로 사용 |
 | [`agents_sdk_structured_output.py`](../script/agents_sdk_structured_output.py) | Pydantic model로 결과 형식 지정 |
 | [`agents_sdk_handoff.py`](../script/agents_sdk_handoff.py) | 전문 에이전트로 handoff, agent-as-tool 호출 비교 |
 | [`agents_sdk_guardrails.py`](../script/agents_sdk_guardrails.py) | 입력 guardrail tripwire로 요청 차단 |
