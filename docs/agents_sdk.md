@@ -92,7 +92,7 @@ Python 함수 외에도 SDK에서 다음 tool 유형을 사용할 수 있다.
 
 ### Guardrails
 
-Guardrail은 입력이나 출력을 검사해 정책에 맞지 않는 처리를 차단하거나 흐름을 중단하는 검증 장치다. `instructions`만으로 안전을 보장하려 하지 말고, 민감한 동작과 데이터 경계에 코드 검증을 함께 둔다. 검증 범위와 실패 시 동작을 명확히 정하고, 위험한 tool에는 별도의 권한 확인을 적용한다.
+Agents SDK의 Guardrail은 에이전트 흐름의 입력·출력이나 tool 실행을 검사하는 코드다. 입력 guardrail은 첫 에이전트가 사용자 요청을 처리할 때, 출력 guardrail은 최종 답변을 만든 뒤 검사한다. Tool guardrail은 function tool 실행 전이나 실행 후에 검사한다. 검사가 차단 조건을 표시하면(`tripwire_triggered=True`), SDK는 해당 흐름을 중단하고 관련 예외를 발생시킨다. 애플리케이션은 예외를 처리해 사용자에게 안내하거나 다른 동작을 수행할 수 있다.
 
 ### Tracing
 
