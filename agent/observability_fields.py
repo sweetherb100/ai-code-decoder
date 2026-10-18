@@ -62,7 +62,29 @@ PROMPT_FALLBACK_REASONS: frozenset[str] = frozenset(
     }
 )
 
-SCORE_NAMES: frozenset[str] = frozenset({"tool_contract_passed", "grounding_passed"})
+# Score name -> Langfuse data type. Defined in plan section 5.
+SCORE_TYPES: dict[str, str] = {
+    "tool_contract_passed": "BOOLEAN",
+    "grounding_passed": "BOOLEAN",
+    "grounding_issue": "CATEGORICAL",
+    "exact_resolution_ratio": "NUMERIC",
+    "citation_coverage": "NUMERIC",
+    "cited_source_count": "NUMERIC",
+    "check_format_passed": "BOOLEAN",
+    "user_feedback": "BOOLEAN",
+}
+SCORE_NAMES: frozenset[str] = frozenset(SCORE_TYPES)
+
+# When grounding fails for several reasons, the categorical score keeps the
+# first one in this order; all codes stay in the evaluator output.
+GROUNDING_ISSUE_PRIORITY: tuple[str, ...] = (
+    "missing_field",
+    "unverified_source",
+    "source_info_mismatch",
+    "duplicate_source",
+    "missing_source",
+    "unexpected_source",
+)
 
 # Documentation statuses whose module/symbol are public Python names. Other
 # statuses may carry private package names taken from the submitted code.

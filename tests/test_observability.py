@@ -129,3 +129,41 @@ def test_disabled_mode_creates_no_agent_traces():
     )
     assert completed.returncode == 0, completed.stderr[-2000:]
     assert completed.stdout.strip().endswith("ok")
+
+
+def test_score_values_follow_registered_types():
+    assert observability._score_value("grounding_passed", False) == ("BOOLEAN", 0.0)
+    assert observability._score_value("cited_source_count", 2) == ("NUMERIC", 2.0)
+    assert observability._score_value("grounding_issue", "missing_field") == (
+        "CATEGORICAL",
+        "missing_field",
+    )
+    with pytest.raises(KeyError):
+        observability._score_value("made_up_score", 1)
+
+
+def test_representative_grounding_issue_uses_priority():
+    from agent.decoder import _representative_issue
+
+    assert _representative_issue(("missing_source", "unverified_source")) == "unverified_source"
+    assert _representative_issue(("missing_field", "duplicate_source")) == "missing_field"
+
+
+def test_user_feedback_uses_a_stable_score_id(monkeypatch):
+    calls = []
+
+    class Client:
+        def create_score(self, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setattr(observability, "_state", observability._State(settings=load_settings({}), client=Client()))
+    observability.record_user_feedback("t1", "o1", positive=True)
+    observability.record_user_feedback("t1", "o1", positive=False)
+    assert [c["score_id"] for c in calls] == ["t1-user_feedback", "t1-user_feedback"]
+    assert [c["value"] for c in calls] == [1.0, 0.0]
+    assert calls[0]["data_type"] == "BOOLEAN" and calls[0]["observation_id"] == "o1"
+
+
+def test_user_feedback_without_trace_is_ignored(monkeypatch):
+    monkeypatch.setattr(observability, "_state", None)
+    observability.record_user_feedback(None, None, positive=True)

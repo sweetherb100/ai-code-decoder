@@ -27,6 +27,7 @@ from agent.observability import (
     root_metadata,
     trace_url,
 )
+from agent.observability_fields import GROUNDING_ISSUE_PRIORITY
 from agent.prompts import PROMPT_NAME, resolve_instructions
 from agent.quality import DecodeQualityError, validate_decode_result
 from agent.run_context import DecodeRunContext, ToolContractError
@@ -68,6 +69,7 @@ class DecodeExecution:
     documentation: list[DocumentationEvidence]
     tool_call_audit: list[str]
     trace_id: Optional[str] = None
+    root_observation_id: Optional[str] = None
     trace_url: Optional[str] = None
 
 
@@ -107,6 +109,7 @@ def decode_code(
         return replace(
             execution,
             trace_id=root.trace_id,
+            root_observation_id=root.id,
             trace_url=trace_url(root.trace_id),
         )
 
@@ -210,6 +213,7 @@ def _decode(
         root.score("tool_contract_passed", True)
     metadata["primaryTargetCount"] = len(pipeline_evidence.learning_plan.primary_targets)
     metadata.update(_doc_status_counts(pipeline_evidence.documentation))
+    _score_answer(root, result.final_output, pipeline_evidence.documentation, metadata)
 
     exact_count = metadata["docsExactMatchCount"]
     with observation(
@@ -226,6 +230,7 @@ def _decode(
         except DecodeQualityError as exc:
             grounding_span.update(output={"passed": False, "issueCodes": list(exc.issue_codes)})
             root.score("grounding_passed", False)
+            root.score("grounding_issue", _representative_issue(exc.issue_codes))
             raise
         grounding_span.update(output={"passed": True, "issueCodes": []})
         root.score("grounding_passed", True)
@@ -237,6 +242,36 @@ def _decode(
         documentation=pipeline_evidence.documentation,
         tool_call_audit=run_context.tool_call_audit,
     )
+
+
+def _score_answer(
+    root: Any,
+    answer: DecodeResult,
+    documentation: list[DocumentationEvidence],
+    metadata: dict[str, Any],
+) -> None:
+    """Record quality scores that only need the answer and verified evidence.
+
+    Scores whose denominator is zero are skipped, not recorded as 0 (plan 5).
+    """
+    exact = metadata["docsExactMatchCount"]
+    resolvable = exact + metadata["docsPageOnlyCount"]
+    if resolvable:
+        root.score("exact_resolution_ratio", exact / resolvable)
+    exact_ids = {e.source_id for e in documentation if e.status == "exact_match"}
+    if exact_ids:
+        cited = {source.source_id for source in answer.source} & exact_ids
+        root.score("citation_coverage", len(cited) / len(exact_ids))
+    root.score("cited_source_count", len(answer.source))
+    # Format check only: exactly one question mark, not semantic single-question.
+    root.score("check_format_passed", answer.check.count("?") + answer.check.count("？") == 1)
+
+
+def _representative_issue(issue_codes: tuple[str, ...]) -> str:
+    for code in GROUNDING_ISSUE_PRIORITY:
+        if code in issue_codes:
+            return code
+    return issue_codes[0] if issue_codes else "unknown"
 
 
 def _doc_status_counts(documentation: list[DocumentationEvidence]) -> dict[str, int]:

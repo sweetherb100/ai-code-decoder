@@ -154,16 +154,16 @@ def stub_docs(monkeypatch: pytest.MonkeyPatch) -> Callable[[dict[str, str]], Non
 
 
 @pytest.fixture
-def scores(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, bool]]:
-    """Record scores sent through the observability wrapper."""
+def scores(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, Any]]:
+    """Record scores sent through the observability wrapper as (name, value)."""
     from agent import observability
 
-    recorded: list[tuple[str, bool]] = []
+    recorded: list[tuple[str, Any]] = []
     original = observability.Observation.score
 
-    def spy(self: Any, name: str, passed: bool) -> None:
-        recorded.append((name, passed))
-        original(self, name, passed)
+    def spy(self: Any, name: str, value: Any) -> None:
+        recorded.append((name, value))
+        original(self, name, value)
 
     monkeypatch.setattr(observability.Observation, "score", spy)
     return recorded

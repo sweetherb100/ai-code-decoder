@@ -14,7 +14,7 @@ load_dotenv()
 
 from agent.analyzer import CodeAnalysisError, MAX_CODE_CHARACTERS  # noqa: E402
 from agent.decoder import DecodeExecution, decode_code  # noqa: E402
-from agent.observability import load_settings  # noqa: E402
+from agent.observability import load_settings, record_user_feedback  # noqa: E402
 from agent.quality import DecodeQualityError  # noqa: E402
 
 st.set_page_config(page_title="AI Code Decode", page_icon="🔎", layout="wide")
@@ -43,6 +43,23 @@ def _api_key() -> str | None:
         os.environ["OPENAI_API_KEY"] = str(secret_key)
         return str(secret_key)
     return None
+
+
+def _render_feedback(execution: DecodeExecution) -> None:
+    """Ask whether the explanation helped and record it on the Langfuse trace."""
+    if not execution.trace_id:
+        return
+    key = f"feedback-{execution.trace_id}"
+
+    def _on_change() -> None:
+        vote = st.session_state.get(key)
+        if vote is not None:
+            record_user_feedback(
+                execution.trace_id, execution.root_observation_id, positive=vote == 1
+            )
+
+    st.caption("이 설명이 도움이 되었나요?")
+    st.feedback("thumbs", key=key, on_change=_on_change)
 
 
 def _session_id() -> str:
@@ -198,6 +215,7 @@ with right:
         st.markdown("### Check")
         st.info(decoded.check)
         if execution:
+            _render_feedback(execution)
             with st.expander("실행 근거"):
                 _render_execution_evidence(execution)
         if analysis:

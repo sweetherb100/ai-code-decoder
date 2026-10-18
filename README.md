@@ -41,7 +41,7 @@ streamlit run app.py
 
 ### Langfuse tracing
 
-`.env`에 `LANGFUSE_ENABLED=1`과 `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`을 모두 설정하면 켜집니다. Decode 1회가 Langfuse trace 1개로 기록되고, 같은 브라우저 세션의 실행은 하나의 session으로 묶입니다.
+`.env`에 `LANGFUSE_ENABLED=1`과 `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`을 모두 설정하면 켜집니다. Decode 1회가 Langfuse trace 1개로 기록되고, 같은 브라우저 세션의 실행은 하나의 session으로 묶입니다. Tool 계약·출처 검증 통과 여부, 문서 근거 비율 같은 품질 점수가 자동으로 기록되고, 결과 아래 👍/👎를 누르면 사용자 피드백 점수도 같은 trace에 남습니다.
 
 데이터 전송·저장 정책:
 

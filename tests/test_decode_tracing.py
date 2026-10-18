@@ -258,3 +258,56 @@ def test_prompt_fetch_failure_falls_back_without_link(span_exporter, prompt_fetc
     assert metadata["promptFallbackReason"] == "unexpected"
     resolve = next(s for s in spans if s.name == "prompt.resolve")
     assert attr(resolve, "langfuse.observation.level") == "WARNING"
+
+
+def test_answer_quality_scores(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+    stub_docs({"json": "exact_match"})
+    fake_openai.final_text = decode_result_json(
+        source=[
+            {
+                "source_id": "source-json",
+                "title": "Python documentation: json.dumps",
+                "url": "https://docs.python.org/3/library/json.html",
+            }
+        ]
+    )
+    decode_code(CODE, "Beginner")
+    export(span_exporter)
+    recorded = dict(scores)
+    assert recorded["exact_resolution_ratio"] == 1.0
+    assert recorded["citation_coverage"] == 1.0
+    assert recorded["cited_source_count"] == 1
+    assert recorded["check_format_passed"] is True
+    assert "grounding_issue" not in recorded
+
+
+def test_ratio_scores_are_skipped_when_denominator_is_zero(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+    stub_docs({"json": "unsupported"})
+    fake_openai.final_text = decode_result_json(check="질문 하나? 그리고 둘?")
+    decode_code(CODE, "Beginner")
+    export(span_exporter)
+    recorded = dict(scores)
+    assert "exact_resolution_ratio" not in recorded  # unsupported is not a quality failure
+    assert "citation_coverage" not in recorded
+    assert recorded["cited_source_count"] == 0
+    assert recorded["check_format_passed"] is False
+
+
+def test_page_only_lowers_exact_resolution(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+    stub_docs({"json": "page_only"})
+    decode_code(CODE, "Beginner")
+    export(span_exporter)
+    assert dict(scores)["exact_resolution_ratio"] == 0.0
+
+
+def test_grounding_failure_records_representative_issue(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+    stub_docs({"json": "exact_match"})
+    fake_openai.final_text = decode_result_json(
+        source=[{"source_id": "source-made-up", "title": "t", "url": "https://example.com"}]
+    )
+    with pytest.raises(DecodeQualityError):
+        decode_code(CODE, "Beginner")
+    export(span_exporter)
+    recorded = dict(scores)
+    assert recorded["grounding_issue"] == "unverified_source"
+    assert recorded["citation_coverage"] == 0.0

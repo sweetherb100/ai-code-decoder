@@ -24,7 +24,7 @@ from agent.observability_fields import (
     CONTENT_ATTRIBUTE_KEYS,
     ROOT_METADATA_KEYS,
     ROOT_OBSERVATION_NAME,
-    SCORE_NAMES,
+    SCORE_TYPES,
     TRACE_NAME,
     is_allowed_attribute,
 )
@@ -220,17 +220,46 @@ class Observation:
         except Exception as exc:
             log_event("telemetry_update_failed", error=type(exc).__name__)
 
-    def score(self, name: str, passed: bool) -> None:
-        """Record a boolean score on this observation."""
+    def score(self, name: str, value: bool | float | str) -> None:
+        """Record a registered score on this observation."""
         if self._span is None:
             return
-        if name not in SCORE_NAMES:
-            log_event("telemetry_unknown_score", name=name)
-            return
         try:
-            self._span.score(name=name, value=1.0 if passed else 0.0, data_type="BOOLEAN")
+            data_type, sent = _score_value(name, value)
+            self._span.score(name=name, value=sent, data_type=data_type)
         except Exception as exc:
             log_event("telemetry_score_failed", name=name, error=type(exc).__name__)
+
+
+def _score_value(name: str, value: bool | float | str) -> tuple[str, float | str]:
+    """Convert a value to what Langfuse expects for the registered score type."""
+    data_type = SCORE_TYPES.get(name)
+    if data_type is None:
+        raise KeyError(name)
+    if data_type == "BOOLEAN":
+        return data_type, 1.0 if value else 0.0
+    if data_type == "NUMERIC":
+        return data_type, float(value)
+    return data_type, str(value)
+
+
+def record_user_feedback(trace_id: Optional[str], observation_id: Optional[str], positive: bool) -> None:
+    """Record 👍/👎 on a decode run. Re-clicking updates the same score."""
+    if not trace_id or _state is None or _state.client is None:
+        return
+    try:
+        data_type, value = _score_value("user_feedback", positive)
+        _state.client.create_score(
+            name="user_feedback",
+            value=value,
+            data_type=data_type,
+            trace_id=trace_id,
+            observation_id=observation_id,
+            # Stable ID so a Streamlit rerun or a changed vote updates one score.
+            score_id=f"{trace_id}-user_feedback",
+        )
+    except Exception as exc:
+        log_event("telemetry_score_failed", name="user_feedback", error=type(exc).__name__)
 
 
 def _classify(
