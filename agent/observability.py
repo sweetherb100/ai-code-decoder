@@ -49,6 +49,7 @@ class ObservabilitySettings:
     sample_rate: float
     capture_content: bool
     show_trace_link: bool
+    prompt_label: str = "production"
     capture_forced_off: bool = False
     missing_credentials: bool = False
 
@@ -72,6 +73,7 @@ def load_settings(env: Mapping[str, str] = os.environ) -> ObservabilitySettings:
         capture_content=capture_requested and environment == "local",
         capture_forced_off=capture_requested and environment != "local",
         show_trace_link=env.get("LANGFUSE_SHOW_TRACE_LINK", "").lower() in _TRUTHY,
+        prompt_label=env.get("LANGFUSE_PROMPT_LABEL") or "production",
         missing_credentials=requested and not has_credentials,
     )
 
@@ -311,6 +313,34 @@ def _propagate(*, session_id: Optional[str], tags: list[str]):
         from langfuse import propagate_attributes
 
         return propagate_attributes(session_id=session_id, tags=tags, trace_name=TRACE_NAME)
+    except Exception as exc:
+        log_event("telemetry_propagation_failed", error=type(exc).__name__)
+        return nullcontext()
+
+
+def prompt_client() -> Any:
+    """Return the Langfuse client for prompt fetches, or None when disabled."""
+    return _state.client if _state is not None else None
+
+
+def prompt_label() -> str:
+    return _state.settings.prompt_label if _state is not None else "production"
+
+
+def linked_prompt(remote_prompt: Any, *, level: str, prompt_source: str):
+    """Link generations created in this context to a Langfuse prompt version.
+
+    Fallback prompts are not Langfuse versions, so they are never linked.
+    """
+    if _state is None or _state.client is None:
+        return nullcontext()
+    try:
+        from langfuse import propagate_attributes
+
+        tags = [APP_TAG, f"level:{level.lower()}", f"prompt_source:{prompt_source}"]
+        if remote_prompt is None:
+            return propagate_attributes(tags=tags)
+        return propagate_attributes(prompt=remote_prompt, tags=tags)
     except Exception as exc:
         log_event("telemetry_propagation_failed", error=type(exc).__name__)
         return nullcontext()

@@ -51,6 +51,14 @@ streamlit run app.py
 - `LANGFUSE_CAPTURE_CONTENT=1`은 `LANGFUSE_TRACING_ENVIRONMENT=local`일 때만 적용되며, 이때는 코드와 응답 원문이 Langfuse에 저장될 수 있습니다. 다른 환경에서는 자동으로 0으로 바뀝니다.
 - OpenAI 플랫폼 trace로는 전송하지 않습니다. tracing을 끄면 Agents SDK trace 자체를 만들지 않습니다.
 
+### Prompt 관리
+
+시스템 프롬프트는 Langfuse의 `code-decoder/system`(text prompt)에서 `LANGFUSE_PROMPT_LABEL`(기본 `production`) label 버전을 읽어 씁니다. 해당 버전이 모든 LLM 호출(generation)에 연결되므로 Langfuse에서 프롬프트 버전별 품질·비용을 비교할 수 있습니다.
+
+- 조회 실패, prompt 형식·`schemaVersion`·config 오류가 있으면 `agent/prompts.py`의 로컬 프롬프트 전체로 대체합니다. 이때 trace에는 `promptVersion=fallback-<hash>`와 대체 사유가 남습니다.
+- 새 버전 만들기: `python scripts/seed_prompts.py --message "변경 내용"` → `staging` label로만 생성됩니다. `LANGFUSE_PROMPT_LABEL=staging`으로 확인한 뒤 Langfuse UI에서 `production` label을 옮겨 배포하고, 되돌릴 때는 이전 버전으로 label을 옮깁니다.
+- `DecodeResult` 형식이나 Tool 계약이 바뀌면 `PROMPT_SCHEMA_VERSION`을 올리고 새 버전을 seed합니다. 이전 schema의 원격 프롬프트는 자동으로 무시됩니다.
+
 설계 문서: [`docs/langfuse-tracing-plan.md`](docs/langfuse-tracing-plan.md)
 
 ### 테스트
@@ -72,7 +80,7 @@ agent/
   documentation.py  공식 Python 문서 조회
   quality.py        최종 응답의 문서 근거 검증
   tools.py          Agents SDK 함수 도구
-  prompts.py        What/Why/Source/Example/Check 지침
+  prompts.py        로컬 프롬프트·config와 Langfuse 프롬프트 조회/대체
   models.py         분석 및 구조화 응답 모델
   decoder.py        Agent와 Runner 구성, decode trace root
   observability.py  Langfuse 초기화, observation·score helper, export masking

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections import Counter
 from dataclasses import dataclass, replace
 from typing import Any, Literal, Optional
@@ -21,11 +20,14 @@ from agent.observability import (
     capture_content,
     decode_trace,
     init_observability,
+    linked_prompt,
     observation,
+    prompt_client,
+    prompt_label,
     root_metadata,
     trace_url,
 )
-from agent.prompts import instructions_for_level
+from agent.prompts import PROMPT_NAME, resolve_instructions
 from agent.quality import DecodeQualityError, validate_decode_result
 from agent.run_context import DecodeRunContext, ToolContractError
 from agent.tools import decode_code_pipeline_tool
@@ -136,18 +138,33 @@ def _decode(
     metadata["targetCount"] = len(analysis.learning_targets)
     metadata["unresolvedTargetCount"] = len(analysis.learning_targets) - resolved_count
 
-    model_env = os.getenv("OPENAI_MODEL")
-    model = model_env or "gpt-4.1-mini"
-    metadata["model"] = model
-    metadata["modelSource"] = "env" if model_env else "default"
+    label = prompt_label()
+    with observation("prompt.resolve", input={"name": PROMPT_NAME, "label": label}) as prompt_span:
+        prompt = resolve_instructions(level, prompt_client(), label)
+        prompt_span.update(
+            output={
+                "source": prompt.source,
+                "version": prompt.version,
+                "modelSource": prompt.model_source,
+                "fallbackReason": prompt.fallback_reason,
+            }
+        )
+        if prompt.fallback_reason not in (None, "disabled"):
+            prompt_span.update(level="WARNING", status_message=prompt.fallback_reason)
+    metadata["model"] = prompt.model
+    metadata["modelSource"] = prompt.model_source
+    metadata["promptSource"] = prompt.source
+    metadata["promptVersion"] = prompt.version
+    if prompt.fallback_reason:
+        metadata["promptFallbackReason"] = prompt.fallback_reason
     run_context = DecodeRunContext(
         level=level,
         analysis=analysis,
     )
     agent = Agent(
         name="AI Code Decode Agent",
-        instructions=instructions_for_level(level),
-        model=model,
+        instructions=prompt.instructions,
+        model=prompt.model,
         tools=[decode_code_pipeline_tool],
         model_settings=ModelSettings(
             tool_choice="decode_code_pipeline",
@@ -165,7 +182,8 @@ def _decode(
         f"<surrounding_context>\n{context_block}\n</surrounding_context>\n\n"
         f"Audience level: {level}. Return all fields in {DecodeResult.__name__}."
     )
-    result = Runner.run_sync(agent, user_input, context=run_context, max_turns=MAX_TURNS)
+    with linked_prompt(prompt.remote, level=level, prompt_source=prompt.source):
+        result = Runner.run_sync(agent, user_input, context=run_context, max_turns=MAX_TURNS)
     metadata["llmCallCount"] = len(result.raw_responses)
     if not isinstance(result.final_output, DecodeResult):
         raise AgentBehaviorError("에이전트가 정해진 디코드 응답 형식으로 답하지 않았습니다.")

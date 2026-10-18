@@ -102,7 +102,7 @@ def assert_no_exception_events(spans):
     assert [(s.name, e.name) for s in spans for e in s.events if e.name == "exception"] == []
 
 
-def test_success_trace_invariants(span_exporter, fake_openai, stub_docs, scores, caplog):
+def test_success_trace_invariants(span_exporter, prompt_fetch, fake_openai, stub_docs, scores, caplog):
     stub_docs({"json": "exact_match"})
     fake_openai.final_text = decode_result_json(
         source=[
@@ -148,7 +148,7 @@ def test_success_trace_invariants(span_exporter, fake_openai, stub_docs, scores,
     assert "telemetry_unknown_metadata_key" not in caplog.text
 
 
-def test_unsupported_target_names_are_not_exported(span_exporter, fake_openai, stub_docs, scores):
+def test_unsupported_target_names_are_not_exported(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
     stub_docs({"json": "exact_match"})
     decode_code(f"import {CANARY}_mod\n{CANARY}_mod.run()\n", "Developer")
     spans = export(span_exporter)
@@ -161,7 +161,7 @@ def test_unsupported_target_names_are_not_exported(span_exporter, fake_openai, s
     assert_no_canary(spans)
 
 
-def test_syntax_error_is_input_rejected_without_llm_calls(span_exporter, fake_openai, scores):
+def test_syntax_error_is_input_rejected_without_llm_calls(span_exporter, prompt_fetch, fake_openai, scores):
     with pytest.raises(CodeAnalysisError):
         decode_code(f"{CANARY}_value = (\n", "Beginner")
     spans = export(span_exporter)
@@ -176,7 +176,7 @@ def test_syntax_error_is_input_rejected_without_llm_calls(span_exporter, fake_op
     assert_no_exception_events(spans)
 
 
-def test_unparseable_model_output_is_agent_behavior_failure(span_exporter, fake_openai, stub_docs, scores):
+def test_unparseable_model_output_is_agent_behavior_failure(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
     fake_openai.final_text = f'{{"what": ["{CANARY}_model_output"'
     with pytest.raises(ModelBehaviorError):
         decode_code(CODE, "Beginner")
@@ -189,7 +189,7 @@ def test_unparseable_model_output_is_agent_behavior_failure(span_exporter, fake_
     assert_no_exception_events(spans)
 
 
-def test_grounding_failure_records_false_score_and_issue_code(span_exporter, fake_openai, stub_docs, scores):
+def test_grounding_failure_records_false_score_and_issue_code(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
     stub_docs({"json": "exact_match"})
     fake_openai.final_text = decode_result_json(
         source=[{"source_id": "source-made-up", "title": "t", "url": "https://example.com"}]
@@ -214,7 +214,7 @@ def test_outcomes_are_registered():
     assert {outcome for _, outcome in OUTCOME_BY_ERROR.values()} | {"success", "runtime_error"} == OUTCOMES
 
 
-def test_unavailable_docs_are_warnings_with_error_type(span_exporter, fake_openai, stub_docs, scores):
+def test_unavailable_docs_are_warnings_with_error_type(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
     stub_docs({"json": "unavailable"})
     decode_code(CODE, "Beginner")
     spans = export(span_exporter)
@@ -222,3 +222,39 @@ def test_unavailable_docs_are_warnings_with_error_type(span_exporter, fake_opena
     assert attr(lookup, "langfuse.observation.level") == "WARNING"
     assert json.loads(attr(lookup, "langfuse.observation.output"))["errorType"] == "TimeoutError"
     assert root_metadata(root_of(spans))["docsUnavailableCount"] == 1
+
+
+def test_remote_prompt_is_linked_to_every_generation(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+    from tests.conftest import make_text_prompt
+
+    prompt_fetch["result"] = make_text_prompt(version=7)
+    decode_code(CODE, "Developer")
+    spans = export(span_exporter)
+    generations = [s for s in spans if attr(s, "openinference.span.kind") == "LLM"]
+    assert len(generations) == 2
+    for span in generations:
+        assert attr(span, "langfuse.observation.prompt.name") == "code-decoder/system"
+        assert attr(span, "langfuse.observation.prompt.version") == 7
+    metadata = root_metadata(root_of(spans))
+    assert metadata["promptSource"] == "langfuse"
+    assert metadata["promptVersion"] == "7"
+    assert "promptFallbackReason" not in metadata
+    resolve = next(s for s in spans if s.name == "prompt.resolve")
+    assert attr(resolve, "langfuse.observation.level") in (None, "DEFAULT")
+
+
+def test_prompt_fetch_failure_falls_back_without_link(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+    from agent.prompts import LOCAL_PROMPT_VERSION
+
+    execution = decode_code(CODE, "Beginner")
+    assert execution.result.what
+    spans = export(span_exporter)
+    generations = [s for s in spans if attr(s, "openinference.span.kind") == "LLM"]
+    assert generations
+    assert all(attr(s, "langfuse.observation.prompt.name") is None for s in generations)
+    metadata = root_metadata(root_of(spans))
+    assert metadata["promptSource"] == "fallback"
+    assert metadata["promptVersion"] == LOCAL_PROMPT_VERSION
+    assert metadata["promptFallbackReason"] == "unexpected"
+    resolve = next(s for s in spans if s.name == "prompt.resolve")
+    assert attr(resolve, "langfuse.observation.level") == "WARNING"

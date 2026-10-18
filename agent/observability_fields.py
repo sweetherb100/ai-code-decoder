@@ -44,7 +44,23 @@ ROOT_METADATA_KEYS: dict[str, type] = {
     "docsUnavailableCount": int,
     "llmCallCount": int,
     "contentCaptured": bool,
+    "promptSource": str,
+    "promptVersion": str,
+    "promptFallbackReason": str,
 }
+
+PROMPT_SOURCES: frozenset[str] = frozenset({"langfuse", "fallback"})
+PROMPT_FALLBACK_REASONS: frozenset[str] = frozenset(
+    {
+        "disabled",
+        "fetch_failed",
+        "type_mismatch",
+        "schema_mismatch",
+        "invalid_config",
+        "compile_failed",
+        "unexpected",
+    }
+)
 
 SCORE_NAMES: frozenset[str] = frozenset({"tool_contract_passed", "grounding_passed"})
 

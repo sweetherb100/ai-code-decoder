@@ -167,3 +167,39 @@ def scores(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, bool]]:
 
     monkeypatch.setattr(observability.Observation, "score", spy)
     return recorded
+
+
+def make_text_prompt(*, template: str | None = None, config: Any = None, version: int = 3):
+    """Build a Langfuse text prompt client as returned by get_prompt."""
+    from langfuse.api.prompts.types.prompt import Prompt_Text
+    from langfuse.model import TextPromptClient
+
+    from agent.prompts import LOCAL_PROMPT_CONFIG, LOCAL_SYSTEM_PROMPT_TEMPLATE, PROMPT_NAME
+
+    return TextPromptClient(
+        Prompt_Text(
+            name=PROMPT_NAME,
+            version=version,
+            prompt=template if template is not None else LOCAL_SYSTEM_PROMPT_TEMPLATE,
+            config=config if config is not None else LOCAL_PROMPT_CONFIG,
+            labels=["production"],
+            tags=[],
+        )
+    )
+
+
+@pytest.fixture
+def prompt_fetch(monkeypatch: pytest.MonkeyPatch, span_exporter: InMemorySpanExporter):
+    """Control what the Langfuse client returns from get_prompt (no network)."""
+    from agent import observability
+
+    behavior: dict[str, Any] = {"result": RuntimeError("prompt API unavailable")}
+
+    def get_prompt(*_: Any, **__: Any) -> Any:
+        result = behavior["result"]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(observability._state.client, "get_prompt", get_prompt)
+    return behavior
