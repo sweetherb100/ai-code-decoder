@@ -57,6 +57,8 @@ streamlit run app.py
 
 - 조회 실패, prompt 형식·`schemaVersion`·config 오류가 있으면 `agent/prompts.py`의 로컬 프롬프트 전체로 대체합니다. 이때 trace에는 `promptVersion=fallback-<hash>`와 대체 사유가 남습니다.
 - 새 버전 만들기: `python scripts/seed_prompts.py --message "변경 내용"` → `staging` label로만 생성됩니다. `LANGFUSE_PROMPT_LABEL=staging`으로 확인한 뒤 Langfuse UI에서 `production` label을 옮겨 배포하고, 되돌릴 때는 이전 버전으로 label을 옮깁니다.
+- prompt config의 `model`, `temperature`로 모델 설정을 함께 관리합니다. `temperature`가 없으면 기본값 1.0(OpenAI 기본값과 동일)을 쓰고, `null`이면 파라미터를 보내지 않습니다(temperature를 받지 않는 reasoning 모델용). 0~2 범위를 벗어나거나 숫자가 아니면 config 오류로 보고 로컬 프롬프트로 대체합니다. 모델은 `.env`의 `OPENAI_MODEL`이 있으면 그 값이 우선합니다.
+- `reasoningEffort`(`none`·`minimal`·`low`·`medium`·`high`·`xhigh`·`max`)는 reasoning 모델을 쓸 때만 넣습니다. 없거나 `null`이면 보내지 않습니다. 설정했는데 `temperature`가 없으면 temperature도 보내지 않습니다.
 - `DecodeResult` 형식이나 Tool 계약이 바뀌면 `PROMPT_SCHEMA_VERSION`을 올리고 새 버전을 seed합니다. 이전 schema의 원격 프롬프트는 자동으로 무시됩니다.
 
 설계 문서: [`docs/langfuse-tracing-plan.md`](docs/langfuse-tracing-plan.md)

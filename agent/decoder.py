@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Literal, Optional
 
 from agents import Agent, ModelSettings, Runner
+from openai.types.shared import Reasoning
 from agents.exceptions import MaxTurnsExceeded, ModelBehaviorError
 
 from agent.analyzer import CodeAnalysisError, analyze_code
@@ -149,6 +150,9 @@ def _decode(
                 "source": prompt.source,
                 "version": prompt.version,
                 "modelSource": prompt.model_source,
+                "temperature": prompt.temperature,
+                "temperatureSource": prompt.temperature_source,
+                "reasoningEffort": prompt.reasoning_effort,
                 "fallbackReason": prompt.fallback_reason,
             }
         )
@@ -156,6 +160,11 @@ def _decode(
             prompt_span.update(level="WARNING", status_message=prompt.fallback_reason)
     metadata["model"] = prompt.model
     metadata["modelSource"] = prompt.model_source
+    if prompt.temperature is not None:
+        metadata["temperature"] = prompt.temperature
+    metadata["temperatureSource"] = prompt.temperature_source
+    if prompt.reasoning_effort is not None:
+        metadata["reasoningEffort"] = prompt.reasoning_effort
     metadata["promptSource"] = prompt.source
     metadata["promptVersion"] = prompt.version
     if prompt.fallback_reason:
@@ -170,6 +179,12 @@ def _decode(
         model=prompt.model,
         tools=[decode_code_pipeline_tool],
         model_settings=ModelSettings(
+            temperature=prompt.temperature,
+            reasoning=(
+                Reasoning(effort=prompt.reasoning_effort)
+                if prompt.reasoning_effort is not None
+                else None
+            ),
             tool_choice="decode_code_pipeline",
             parallel_tool_calls=False,
         ),

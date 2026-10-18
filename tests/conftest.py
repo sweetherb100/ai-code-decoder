@@ -68,10 +68,12 @@ class FakeOpenAI:
 
     final_text: str = field(default_factory=decode_result_json)
     requests: list[str] = field(default_factory=list)
+    bodies: list[dict[str, Any]] = field(default_factory=list)
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request.url.path)
         body = json.loads(request.content or b"{}")
+        self.bodies.append(body)
         has_tool_output = any(
             isinstance(item, dict) and item.get("type") == "function_call_output"
             for item in body.get("input", [])

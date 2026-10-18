@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from agent.prompts import (
+    DEFAULT_TEMPERATURE,
     LEVEL_STYLES,
     LOCAL_PROMPT_CONFIG,
     LOCAL_PROMPT_VERSION,
@@ -84,6 +85,12 @@ def _fallback_prompt():
         (make_text_prompt(config=config(levelStyles={"Beginner": "only one"})), "invalid_config"),
         (make_text_prompt(config=config(model="")), "invalid_config"),
         (make_text_prompt(config=["not", "a", "dict"]), "invalid_config"),
+        (make_text_prompt(config=config(temperature="0.2")), "invalid_config"),
+        (make_text_prompt(config=config(temperature=True)), "invalid_config"),
+        (make_text_prompt(config=config(temperature=-0.1)), "invalid_config"),
+        (make_text_prompt(config=config(temperature=2.5)), "invalid_config"),
+        (make_text_prompt(config=config(reasoningEffort="extreme")), "invalid_config"),
+        (make_text_prompt(config=config(reasoningEffort=3)), "invalid_config"),
         (make_text_prompt(template="No variables here"), "compile_failed"),
         (make_text_prompt(template="{{level}} {{level_style}} {{extra}}"), "compile_failed"),
     ],
@@ -97,6 +104,8 @@ def test_any_failure_falls_back_to_the_whole_local_prompt(result, reason):
     assert resolved.instructions == instructions_for_level("Beginner")
     assert resolved.version == LOCAL_PROMPT_VERSION
     assert resolved.remote is None
+    assert (resolved.temperature, resolved.temperature_source) == (DEFAULT_TEMPERATURE, "default")
+    assert resolved.reasoning_effort is None
 
 
 def test_chat_prompt_is_a_type_mismatch():
@@ -112,3 +121,40 @@ def test_chat_prompt_is_a_type_mismatch():
 def test_fallback_version_identifies_the_local_template():
     assert LOCAL_PROMPT_VERSION.startswith("fallback-")
     assert len(LOCAL_PROMPT_VERSION) == len("fallback-") + 12
+
+
+def _without_temperature() -> dict[str, Any]:
+    return {k: v for k, v in LOCAL_PROMPT_CONFIG.items() if k != "temperature"}
+
+
+@pytest.mark.parametrize(
+    ("prompt_config", "expected"),
+    [
+        (config(temperature=0.2), (0.2, "prompt_config")),
+        (config(temperature=0), (0.0, "prompt_config")),
+        (config(temperature=2), (2.0, "prompt_config")),
+        (config(temperature=None), (None, "prompt_config")),  # omit for reasoning models
+        (_without_temperature(), (DEFAULT_TEMPERATURE, "default")),
+    ],
+)
+def test_temperature_comes_from_prompt_config(prompt_config, expected):
+    resolved = resolve_instructions("Beginner", FakeClient(make_text_prompt(config=prompt_config)), "production")
+    assert resolved.source == "langfuse"
+    assert (resolved.temperature, resolved.temperature_source) == expected
+
+
+@pytest.mark.parametrize(
+    ("prompt_config", "expected"),
+    [
+        (config(), (None, DEFAULT_TEMPERATURE)),
+        (config(reasoningEffort=None), (None, DEFAULT_TEMPERATURE)),
+        # Reasoning models often reject temperature, so a missing one is omitted.
+        ({**_without_temperature(), "reasoningEffort": "low"}, ("low", None)),
+        # An explicit temperature is still honored.
+        (config(reasoningEffort="high", temperature=1), ("high", 1.0)),
+    ],
+)
+def test_reasoning_effort_comes_from_prompt_config(prompt_config, expected):
+    resolved = resolve_instructions("Beginner", FakeClient(make_text_prompt(config=prompt_config)), "production")
+    assert resolved.source == "langfuse"
+    assert (resolved.reasoning_effort, resolved.temperature) == expected

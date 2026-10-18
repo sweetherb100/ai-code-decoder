@@ -311,3 +311,53 @@ def test_grounding_failure_records_representative_issue(span_exporter, prompt_fe
     recorded = dict(scores)
     assert recorded["grounding_issue"] == "unverified_source"
     assert recorded["citation_coverage"] == 0.0
+
+
+@pytest.mark.parametrize(("temperature", "sent"), [(0.3, 0.3), (None, None)])
+def test_prompt_temperature_reaches_the_model_request(
+    span_exporter, prompt_fetch, fake_openai, stub_docs, scores, temperature, sent
+):
+    from agent.prompts import LOCAL_PROMPT_CONFIG
+    from tests.conftest import make_text_prompt
+
+    prompt_fetch["result"] = make_text_prompt(config={**LOCAL_PROMPT_CONFIG, "temperature": temperature})
+    decode_code(CODE, "Beginner")
+    spans = export(span_exporter)
+    assert [body.get("temperature") for body in fake_openai.bodies] == [sent, sent]
+    metadata = root_metadata(root_of(spans))
+    assert metadata["temperatureSource"] == "prompt_config"
+    assert metadata.get("temperature") == sent
+
+
+def test_missing_temperature_uses_default(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+    from agent.prompts import DEFAULT_TEMPERATURE, LOCAL_PROMPT_CONFIG
+    from tests.conftest import make_text_prompt
+
+    legacy = {k: v for k, v in LOCAL_PROMPT_CONFIG.items() if k != "temperature"}
+    prompt_fetch["result"] = make_text_prompt(config=legacy)
+    decode_code(CODE, "Beginner")
+    spans = export(span_exporter)
+    assert [body.get("temperature") for body in fake_openai.bodies] == [DEFAULT_TEMPERATURE] * 2
+    metadata = root_metadata(root_of(spans))
+    assert (metadata["temperature"], metadata["temperatureSource"]) == (DEFAULT_TEMPERATURE, "default")
+
+
+def test_reasoning_effort_reaches_the_model_request(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+    from agent.prompts import LOCAL_PROMPT_CONFIG
+    from tests.conftest import make_text_prompt
+
+    reasoning_config = {k: v for k, v in LOCAL_PROMPT_CONFIG.items() if k != "temperature"}
+    prompt_fetch["result"] = make_text_prompt(config={**reasoning_config, "reasoningEffort": "low"})
+    decode_code(CODE, "Beginner")
+    spans = export(span_exporter)
+    assert [body.get("reasoning", {}).get("effort") for body in fake_openai.bodies] == ["low", "low"]
+    assert all("temperature" not in body or body["temperature"] is None for body in fake_openai.bodies)
+    metadata = root_metadata(root_of(spans))
+    assert metadata["reasoningEffort"] == "low"
+    assert "temperature" not in metadata
+
+
+def test_default_request_has_no_reasoning_parameter(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+    decode_code(CODE, "Beginner")  # prompt fetch fails -> local config
+    export(span_exporter)
+    assert all(not body.get("reasoning") for body in fake_openai.bodies)
