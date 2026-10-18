@@ -20,10 +20,6 @@ EVALUATION_PROMPT_NAME = "bucket_list_evaluation"
 def evaluate_item(*, item, **_kwargs):
     """Dataset item마다 Responses API로 평가 결과를 생성."""
     prompt = langfuse.get_prompt(EVALUATION_PROMPT_NAME)
-    # if isinstance(item.input, Mapping):
-    #     dataset_input = json.dumps(item.input, ensure_ascii=False)
-    # else:
-    #     dataset_input = str(item.input)
 
     response = client.responses.create(
         name="bucket_list_evaluation",
@@ -56,8 +52,9 @@ def record_score(*, output, **_kwargs):
     """Task 결과의 0/1 점수를 Langfuse experiment score로 반환."""
     return Evaluation(
         name=EVALUATION_PROMPT_NAME,
-        value=output["score"],
+        value=output["score"] == 1,
         comment=output["reason"],
+        data_type="BOOLEAN",
     )
 
 
