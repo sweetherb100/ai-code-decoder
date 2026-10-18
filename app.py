@@ -4,16 +4,18 @@ from __future__ import annotations
 
 from collections import Counter
 import os
+import uuid
 
 from dotenv import load_dotenv
 import streamlit as st
 
-from agent.analyzer import CodeAnalysisError, MAX_CODE_CHARACTERS
-from agent.decoder import DecodeExecution, decode_code
-from agent.quality import DecodeQualityError
-
-
+# Load .env before importing agent modules so telemetry settings are visible.
 load_dotenv()
+
+from agent.analyzer import CodeAnalysisError, MAX_CODE_CHARACTERS  # noqa: E402
+from agent.decoder import DecodeExecution, decode_code  # noqa: E402
+from agent.observability import load_settings, record_user_feedback  # noqa: E402
+from agent.quality import DecodeQualityError  # noqa: E402
 
 st.set_page_config(page_title="AI Code Decode", page_icon="🔎", layout="wide")
 st.title("AI Code Decode Agent")
@@ -43,13 +45,28 @@ def _api_key() -> str | None:
     return None
 
 
-def _tracing_enabled() -> bool:
-    """Return whether optional OpenAI Agents tracing is enabled for this run."""
-    return os.getenv("OPENAI_AGENTS_ENABLE_TRACING", "").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
+def _render_feedback(execution: DecodeExecution) -> None:
+    """Ask whether the explanation helped and record it on the Langfuse trace."""
+    if not execution.trace_id:
+        return
+    key = f"feedback-{execution.trace_id}"
+
+    def _on_change() -> None:
+        vote = st.session_state.get(key)
+        if vote is not None:
+            record_user_feedback(
+                execution.trace_id, execution.root_observation_id, positive=vote == 1
+            )
+
+    st.caption("이 설명이 도움이 되었나요?")
+    st.feedback("thumbs", key=key, on_change=_on_change)
+
+
+def _session_id() -> str:
+    """Return a stable anonymous ID that groups decode runs of this browser session."""
+    if "langfuse_session_id" not in st.session_state:
+        st.session_state["langfuse_session_id"] = str(uuid.uuid4())
+    return st.session_state["langfuse_session_id"]
 
 
 def _render_execution_evidence(execution: DecodeExecution) -> None:
@@ -101,15 +118,16 @@ def _render_execution_evidence(execution: DecodeExecution) -> None:
             f"- `{evidence.module}.{evidence.symbol}` — {label}: {source}"
         )
 
-    if _tracing_enabled():
+    if execution.trace_url:
+        st.markdown(f"[Langfuse trace 열기]({execution.trace_url})")
+    elif load_settings().enabled:
         st.caption(
-            "OpenAI Agents tracing이 활성화되어 있습니다. Trace에서 모델과 "
-            "Function Tool 호출을 확인할 수 있습니다."
+            "Langfuse tracing이 활성화되어 있습니다. 기본 설정에서는 코드 원문 없이 "
+            "구조 정보와 모델 사용량만 기록합니다."
         )
     else:
         st.caption(
-            "Trace를 보려면 `OPENAI_AGENTS_ENABLE_TRACING=1`로 설정하세요. "
-            "제출 코드와 Tool 입출력이 trace에 포함될 수 있습니다."
+            "Trace를 보려면 `LANGFUSE_ENABLED=1`과 Langfuse 키를 설정하세요."
         )
 
 
@@ -148,7 +166,7 @@ if decode_clicked:
     else:
         try:
             with st.status("에이전트가 코드와 공식 문서를 분석하고 있습니다…", expanded=True) as status:
-                execution = decode_code(code, level, context)
+                execution = decode_code(code, level, context, session_id=_session_id())
                 decoded = execution.result
                 analysis = execution.analysis
                 st.write("에이전트 도구 호출 완료")
@@ -197,6 +215,7 @@ with right:
         st.markdown("### Check")
         st.info(decoded.check)
         if execution:
+            _render_feedback(execution)
             with st.expander("실행 근거"):
                 _render_execution_evidence(execution)
         if analysis:
