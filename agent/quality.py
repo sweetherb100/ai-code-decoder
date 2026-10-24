@@ -1,5 +1,8 @@
 """Validate that generated decode responses are grounded in tool evidence."""
 
+import ast
+from typing import Optional
+
 from agent.models import DecodeResult, DocumentationEvidence
 
 
@@ -14,6 +17,21 @@ class DecodeQualityError(ValueError):
 def is_single_question_format(check: str) -> bool:
     """Return whether `check` has exactly one question mark (format only, not semantics)."""
     return check.count("?") + check.count("？") == 1
+
+
+def example_syntax_error(example: str) -> Optional[str]:
+    """Return a syntax error message for `example`, or None when it parses.
+
+    The example is parsed with the AST only and never executed.
+    """
+    try:
+        ast.parse(example)
+    except SyntaxError as exc:
+        location = f"{exc.lineno}행" if exc.lineno else "위치 미상"
+        return f"{location}: {exc.msg}"
+    except ValueError as exc:
+        return str(exc)
+    return None
 
 
 def validate_decode_result(

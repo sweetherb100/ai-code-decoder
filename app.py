@@ -15,7 +15,7 @@ load_dotenv()
 from agent.analyzer import CodeAnalysisError, MAX_CODE_CHARACTERS  # noqa: E402
 from agent.decoder import DecodeExecution, decode_code  # noqa: E402
 from agent.observability import active_settings, record_user_feedback  # noqa: E402
-from agent.quality import DecodeQualityError  # noqa: E402
+from agent.quality import DecodeQualityError, example_syntax_error  # noqa: E402
 
 st.set_page_config(page_title="AI Code Decode", page_icon="🔎", layout="wide")
 st.title("AI Code Decode Agent")
@@ -212,6 +212,11 @@ with right:
             st.write("지원되는 공식 문서 출처를 찾지 못했습니다.")
         st.markdown("### Example")
         st.code(decoded.example, language="python")
+        syntax_error = example_syntax_error(decoded.example)
+        if syntax_error:
+            st.warning(f"❌ 문법 검사 실패 ({syntax_error})")
+        else:
+            st.caption("✅ 문법 검사 통과 (코드는 실행하지 않고 AST로만 확인했습니다)")
         st.markdown("### Check")
         st.info(decoded.check)
         if execution:
