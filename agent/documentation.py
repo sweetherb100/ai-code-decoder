@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from html.parser import HTMLParser
 import builtins
+from functools import lru_cache
 import hashlib
 import os
 import sys
@@ -110,6 +111,14 @@ def _title(module: str, symbol: str) -> str:
     return f"Python documentation: {module}.{symbol}"
 
 
+# Cache per page so same-page symbols share one download; failures raise and are never cached.
+@lru_cache(maxsize=16)
+def _fetch_page(page_url: str) -> str:
+    request = Request(page_url, headers={"User-Agent": "AI-Code-Decoder/1.0"})
+    with urlopen(request, timeout=6) as response:
+        return response.read(1_500_000).decode("utf-8", errors="replace")
+
+
 def lookup_documentation(module: str, symbol: str) -> DocumentationEvidence:
     """Return an official Python documentation excerpt and URL for a target."""
     resolved = _official_doc_url(module, symbol)
@@ -129,9 +138,7 @@ def lookup_documentation(module: str, symbol: str) -> DocumentationEvidence:
     source_id = _source_id(url)
     title = _title(module, symbol)
     try:
-        request = Request(page_url, headers={"User-Agent": "AI-Code-Decoder/1.0"})
-        with urlopen(request, timeout=6) as response:
-            html = response.read(1_500_000).decode("utf-8", errors="replace")
+        html = _fetch_page(page_url)
         extractor = _DefinitionExtractor(anchor)
         extractor.feed(html)
         excerpt = " ".join(extractor.parts)

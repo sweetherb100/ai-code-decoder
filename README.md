@@ -29,6 +29,12 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
+macOS에서 python.org 설치 파일로 Python을 설치했다면 SSL 인증서를 한 번 설치해야 합니다. 설치하지 않으면 공식 문서 조회가 `CERTIFICATE_VERIFY_FAILED`로 실패해 출처가 표시되지 않습니다. 경로의 버전은 설치한 Python 버전에 맞게 바꿔 주세요.
+
+```bash
+open "/Applications/Python 3.12/Install Certificates.command"
+```
+
 `.env`의 `OPENAI_API_KEY`에 OpenAI API 키를 설정한 뒤 실행합니다.
 
 ```bash
