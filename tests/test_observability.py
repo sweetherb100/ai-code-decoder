@@ -31,7 +31,9 @@ def test_enabled_requires_flag_and_all_credentials():
 
 
 def test_content_capture_requires_an_explicit_local_environment():
-    local = load_settings({"LANGFUSE_CAPTURE_CONTENT": "1", "LANGFUSE_TRACING_ENVIRONMENT": "local"})
+    local = load_settings(
+        {"LANGFUSE_CAPTURE_CONTENT": "1", "LANGFUSE_TRACING_ENVIRONMENT": "local"}
+    )
     assert local.capture_content and not local.capture_forced_off
     remote = load_settings(
         {"LANGFUSE_CAPTURE_CONTENT": "1", "LANGFUSE_TRACING_ENVIRONMENT": "production"}
@@ -88,9 +90,11 @@ def test_observation_wrapper_is_fail_open():
 
 def test_observation_reraises_the_original_exception():
     error = ValueError("secret code text")
-    with pytest.raises(ValueError) as raised:
-        with observation("unit", expected={ValueError: ("WARNING", "input_rejected")}):
-            raise error
+    with (
+        pytest.raises(ValueError) as raised,
+        observation("unit", expected={ValueError: ("WARNING", "input_rejected")}),
+    ):
+        raise error
     assert raised.value is error
 
 
@@ -164,7 +168,9 @@ def test_user_feedback_uses_a_stable_score_id(monkeypatch):
         def create_score(self, **kwargs):
             calls.append(kwargs)
 
-    monkeypatch.setattr(observability, "_state", observability._State(settings=load_settings({}), client=Client()))
+    monkeypatch.setattr(
+        observability, "_state", observability._State(settings=load_settings({}), client=Client())
+    )
     observability.record_user_feedback("t1", "o1", positive=True)
     observability.record_user_feedback("t1", "o1", positive=False)
     assert [c["score_id"] for c in calls] == ["t1-user_feedback", "t1-user_feedback"]
@@ -175,7 +181,6 @@ def test_user_feedback_uses_a_stable_score_id(monkeypatch):
 def test_user_feedback_without_trace_is_ignored(monkeypatch):
     monkeypatch.setattr(observability, "_state", None)
     observability.record_user_feedback(None, None, positive=True)
-
 
 
 def _run_isolated(script: str) -> subprocess.CompletedProcess:

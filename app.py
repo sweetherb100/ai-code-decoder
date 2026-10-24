@@ -2,20 +2,22 @@
 
 from __future__ import annotations
 
-from collections import Counter
 import os
 import uuid
+from collections import Counter
+from datetime import datetime
 
-from dotenv import load_dotenv
 import streamlit as st
+from dotenv import load_dotenv
 
 # Load .env before importing agent modules so telemetry settings are visible.
 load_dotenv()
 
-from agent.analyzer import CodeAnalysisError, MAX_CODE_CHARACTERS  # noqa: E402
+from agent.analyzer import MAX_CODE_CHARACTERS, CodeAnalysisError  # noqa: E402
 from agent.decoder import DecodeExecution, decode_code  # noqa: E402
+from agent.export import to_markdown  # noqa: E402
 from agent.observability import active_settings, record_user_feedback  # noqa: E402
-from agent.quality import DecodeQualityError  # noqa: E402
+from agent.quality import DecodeQualityError, example_syntax_error  # noqa: E402
 
 st.set_page_config(page_title="AI Code Decode", page_icon="🔎", layout="wide")
 st.title("AI Code Decode Agent")
@@ -38,11 +40,18 @@ def _api_key() -> str | None:
     try:
         secret_key = st.secrets.get("OPENAI_API_KEY")
     except Exception:
+        # External config fallback: a missing or malformed secrets.toml raises errors that
+        # vary by Streamlit version, and it only means "no key in secrets".
         secret_key = None
     if secret_key:
         os.environ["OPENAI_API_KEY"] = str(secret_key)
         return str(secret_key)
     return None
+
+
+def _clear_decode_state() -> None:
+    for key in ("decode_result", "code_analysis", "decode_execution"):
+        st.session_state.pop(key, None)
 
 
 def _render_feedback(execution: DecodeExecution) -> None:
@@ -72,13 +81,10 @@ def _session_id() -> str:
 def _render_execution_evidence(execution: DecodeExecution) -> None:
     """Show which evidence the agent received without treating inner steps as tools."""
     if execution.tool_call_audit == [PIPELINE_TOOL_NAME]:
-        st.success(
-            "Agent가 `decode_code_pipeline` Function Tool을 1회 호출했습니다."
-        )
+        st.success("Agent가 `decode_code_pipeline` Function Tool을 1회 호출했습니다.")
     else:
         st.warning(
-            "예상한 Tool 호출 이력과 다릅니다: "
-            f"{', '.join(execution.tool_call_audit) or '없음'}"
+            f"예상한 Tool 호출 이력과 다릅니다: {', '.join(execution.tool_call_audit) or '없음'}"
         )
 
     st.markdown("**고정 파이프라인 내부 단계**")
@@ -86,16 +92,13 @@ def _render_execution_evidence(execution: DecodeExecution) -> None:
     st.markdown("- 분석 결과를 바탕으로 한 학습 계획 생성")
     st.markdown("- 선택된 학습 대상의 공식 Python 문서 조회")
 
-    targets_by_id = {
-        target.target_id: target for target in execution.analysis.learning_targets
-    }
+    targets_by_id = {target.target_id: target for target in execution.analysis.learning_targets}
     st.markdown("**선택된 학습 대상**")
     if execution.learning_plan.primary_targets:
         for item in execution.learning_plan.primary_targets:
             target = targets_by_id[item.target_id]
             st.write(
-                f"{item.explanation_order}. {target.name} "
-                f"(`{target.expression}`) — {item.reason}"
+                f"{item.explanation_order}. {target.name} (`{target.expression}`) — {item.reason}"
             )
     else:
         st.caption("학습 계획에서 우선 설명 대상을 선택하지 않았습니다.")
@@ -109,14 +112,8 @@ def _render_execution_evidence(execution: DecodeExecution) -> None:
     st.write(summary or "문서 조회 대상이 없습니다.")
     for evidence in execution.documentation:
         label = DOCUMENTATION_STATUS_LABELS[evidence.status]
-        source = (
-            f"[{evidence.title}]({evidence.url})"
-            if evidence.url
-            else evidence.title
-        )
-        st.markdown(
-            f"- `{evidence.module}.{evidence.symbol}` — {label}: {source}"
-        )
+        source = f"[{evidence.title}]({evidence.url})" if evidence.url else evidence.title
+        st.markdown(f"- `{evidence.module}.{evidence.symbol}` — {label}: {source}")
 
     if execution.trace_url:
         st.markdown(f"[Langfuse trace 열기]({execution.trace_url})")
@@ -126,9 +123,7 @@ def _render_execution_evidence(execution: DecodeExecution) -> None:
             "구조 정보와 모델 사용량만 기록합니다."
         )
     else:
-        st.caption(
-            "Trace를 보려면 `LANGFUSE_ENABLED=1`과 Langfuse 키를 설정하세요."
-        )
+        st.caption("Trace를 보려면 `LANGFUSE_ENABLED=1`과 Langfuse 키를 설정하세요.")
 
 
 with st.sidebar:
@@ -153,19 +148,24 @@ with left:
         key="context_input",
     )
     decode_clicked = st.button("Decode Code", type="primary", use_container_width=True)
-    st.caption(f"코드와 주변 코드 합계 한도: {MAX_CODE_CHARACTERS:,}자")
+    character_count = len(code) + len(context)
+    character_usage = f"코드와 주변 코드 합계: {character_count:,} / {MAX_CODE_CHARACTERS:,}자"
+    if character_count > MAX_CODE_CHARACTERS:
+        st.warning(f"{character_usage} (한도 초과)")
+    else:
+        st.caption(character_usage)
 
 if decode_clicked:
-    st.session_state.pop("decode_result", None)
-    st.session_state.pop("code_analysis", None)
-    st.session_state.pop("decode_execution", None)
+    _clear_decode_state()
     if not code.strip():
         st.error("분석할 Python 코드를 입력해 주세요.")
     elif not _api_key():
         st.error("OPENAI_API_KEY를 환경 변수, .env 파일 또는 Streamlit secrets에 설정해 주세요.")
     else:
         try:
-            with st.status("에이전트가 코드와 공식 문서를 분석하고 있습니다…", expanded=True) as status:
+            with st.status(
+                "에이전트가 코드와 공식 문서를 분석하고 있습니다…", expanded=True
+            ) as status:
                 execution = decode_code(code, level, context, session_id=_session_id())
                 decoded = execution.result
                 analysis = execution.analysis
@@ -175,27 +175,45 @@ if decode_clicked:
             st.session_state["decode_result"] = decoded
             st.session_state["code_analysis"] = analysis
             st.session_state["decode_execution"] = execution
+            # Keep the decoded input so later edits in the text areas do not leak into exports.
+            st.session_state["decode_input"] = {"code": code, "context": context}
         except CodeAnalysisError as exc:
             st.error(str(exc))
-            st.session_state.pop("decode_result", None)
-            st.session_state.pop("code_analysis", None)
-            st.session_state.pop("decode_execution", None)
+            _clear_decode_state()
         except DecodeQualityError as exc:
             st.error(str(exc))
             st.caption("도구 근거에 맞는 응답을 만들지 못했습니다. 다시 시도해 주세요.")
-            st.session_state.pop("decode_result", None)
-            st.session_state.pop("code_analysis", None)
-            st.session_state.pop("decode_execution", None)
+            _clear_decode_state()
         except Exception as exc:
+            # UI top level: report any remaining failure to the user and keep the app running.
             st.error(f"디코딩에 실패했습니다: {exc}")
             st.caption("API 키, 모델 권한, 네트워크 연결을 확인한 뒤 다시 시도해 주세요.")
-            st.session_state.pop("decode_execution", None)
+            _clear_decode_state()
 
 with right:
-    st.subheader("DECODED")
     decoded = st.session_state.get("decode_result")
     analysis = st.session_state.get("code_analysis")
     execution = st.session_state.get("decode_execution")
+    title_column, download_column = st.columns([3, 1], vertical_alignment="bottom")
+    with title_column:
+        st.subheader("DECODED")
+    if decoded:
+        decode_input = st.session_state.get("decode_input", {"code": "", "context": ""})
+        created_at = datetime.now()
+        with download_column:
+            st.download_button(
+                "Download",
+                data=to_markdown(
+                    decoded,
+                    decode_input["code"],
+                    decode_input["context"],
+                    created_at,
+                    MAX_CODE_CHARACTERS,
+                ),
+                file_name=f"decoded-{created_at:%Y%m%d-%H%M%S}.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
     if not decoded:
         st.info("코드를 입력하고 Decode Code를 누르면 결과가 여기에 표시됩니다.")
     else:
@@ -212,6 +230,11 @@ with right:
             st.write("지원되는 공식 문서 출처를 찾지 못했습니다.")
         st.markdown("### Example")
         st.code(decoded.example, language="python")
+        syntax_error = example_syntax_error(decoded.example)
+        if syntax_error:
+            st.warning(f"❌ 문법 검사 실패 ({syntax_error})")
+        else:
+            st.caption("✅ 문법 검사 통과 (코드는 실행하지 않고 AST로만 확인했습니다)")
         st.markdown("### Check")
         st.info(decoded.check)
         if execution:
