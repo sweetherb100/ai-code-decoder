@@ -153,7 +153,14 @@ with left:
         key="context_input",
     )
     decode_clicked = st.button("Decode Code", type="primary", use_container_width=True)
-    st.caption(f"코드와 주변 코드 합계 한도: {MAX_CODE_CHARACTERS:,}자")
+    character_count = len(code) + len(context)
+    character_usage = (
+        f"코드와 주변 코드 합계: {character_count:,} / {MAX_CODE_CHARACTERS:,}자"
+    )
+    if character_count > MAX_CODE_CHARACTERS:
+        st.warning(f"{character_usage} (한도 초과)")
+    else:
+        st.caption(character_usage)
 
 if decode_clicked:
     st.session_state.pop("decode_result", None)
