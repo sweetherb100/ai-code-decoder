@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-from agent.documentation import is_documentable
 from agent.models import (
     ExcludedLearningTarget,
     LearningPlan,
@@ -53,17 +52,9 @@ def build_learning_plan(
         target for target in learning_targets if target.resolution == "resolved"
     ]
     targets_by_name = {target.name: target for target in resolved_targets}
-    # Third-party targets cannot produce citable docs, so they only fill slots
-    # left over after builtins and standard-library targets.
-    documentable_ids = {
-        target.target_id
-        for target in resolved_targets
-        if is_documentable(target.module, target.symbol)
-    }
     ranked_targets = sorted(
         resolved_targets,
         key=lambda target: (
-            target.target_id not in documentable_ids,
             -_dependency_depth(target, targets_by_name),
             target.source != "submitted_code",
             target.line is None,
@@ -80,11 +71,6 @@ def build_learning_plan(
             continue
         if target.resolution == "unresolved":
             reason = "모듈 또는 심볼을 정적으로 확인할 수 없어 문서 조회에서 제외했습니다."
-        elif target.target_id not in documentable_ids:
-            reason = (
-                "Python 공식 문서 지원 범위 밖의 대상이라 내장 기능과 표준 라이브러리보다 "
-                "뒤로 미뤘습니다."
-            )
         else:
             reason = (
                 f"핵심 개념을 최대 {MAX_PRIMARY_TARGETS}개로 제한하기 위해 "

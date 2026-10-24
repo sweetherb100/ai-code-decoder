@@ -6,6 +6,8 @@
 ## 공통 확인 기준
 
 - 분석 결과에서 해석 가능한 대상만 학습 계획의 핵심 대상으로 선택한다.
+- 서드파티 대상도 내장·표준 라이브러리와 같은 기준(의존 깊이, 코드 위치)으로 선택한다.
+- 등록된 서드파티 패키지(`agent/package_registry.py`)는 그 패키지의 공식 문서를 출처로 쓰고, 등록되지 않은 패키지는 `unsupported`로 표시한다.
 - 문서 조회는 학습 계획의 핵심 대상 최대 3개에만 수행한다.
 - 최종 출처는 `exact_match` 상태인 문서의 `source_id`, 제목, URL과 정확히 일치한다.
 - `page_only`, `unsupported`, `unavailable` 상태의 문서는 출처에 포함하지 않는다.
@@ -17,7 +19,9 @@
 | 중첩 호출 순서 | `from pathlib import Path\nfiles = sorted(Path("images").glob("*.png"))` | `Path.glob`을 `sorted`보다 먼저 설명하고, 정확히 일치한 문서만 출처로 사용한다. |
 | 문자열 문법 | `name = f"file_{index}.txt"` | f-string을 설명하고, 공식 API 출처가 없으면 출처 목록은 비어 있다. |
 | 표준 라이브러리 | `from pathlib import Path\nPath("data").exists()` | `Path.exists` 문서의 상태와 출처 ID가 최종 응답에 반영된다. |
-| 외부 라이브러리 | `import requests\nrequests.get("https://example.com")` | 지원 범위 밖이라고 안내하며 `requests` 문서를 출처로 만들지 않는다. |
+| 등록된 외부 라이브러리 | `import requests\nrequests.get("https://example.com")` | Requests 공식 문서의 `requests.get` 항목을 출처로 사용한다. |
+| 미등록 외부 라이브러리 | `import internal_billing\ninternal_billing.charge(order)` | 지원 범위 밖이라고 안내하며 출처를 만들지 않는다. |
+| 외부·내장 혼합 | `from dotenv import load_dotenv\nimport streamlit as st\nload_dotenv()\nst.title("t")\nnames = sorted(set(["b", "a"]))` | `set`(`sorted`의 입력), `load_dotenv`, `st.title` 순으로 선택한다. python-dotenv 문서와 Streamlit 문서를 출처로 사용한다. `set` 같은 내장 클래스는 현재 `page_only`라 출처에서 빠진다. |
 | 확인 불가 인스턴스 | `items.append(value)` | 정적 분석으로 타입을 확인하지 못한 사실을 유지하고 출처를 꾸며내지 않는다. |
 | 문법 오류 | `for item in` | LLM 호출 전에 한국어 문법 오류 메시지를 표시한다. |
 
@@ -30,7 +34,9 @@
 | 중첩 호출 순서 | `success` | `lookup_documentation` 순서가 학습 계획 순서와 같음, generation 2개 | `tool_contract_passed`·`citation_integrity_passed` true, `exact_resolution_ratio`·`citation_coverage` 기록 |
 | 문자열 문법 | `success` | 문서 조회가 없으면 retriever 0개 | `exact_resolution_ratio`·`citation_coverage` 없음, `cited_source_count` 0 |
 | 표준 라이브러리 | `success` | retriever input에 `pathlib`/`Path.exists`, output `status=exact_match` | `exact_resolution_ratio` 1, `cited_source_count` = exact match 수 |
-| 외부 라이브러리 | `success` | retriever `status=unsupported`, **input에 `requests` 이름이 없음** | `exact_resolution_ratio` 없음 (품질 실패로 집계되지 않음) |
+| 등록된 외부 라이브러리 | `success` | retriever input에 `requests`/`get`, output `status=exact_match`, URL이 requests.readthedocs.io | `exact_resolution_ratio` 1, `cited_source_count` = exact match 수 |
+| 미등록 외부 라이브러리 | `success` | retriever `status=unsupported`, **input에 `internal_billing` 이름이 없음** | `exact_resolution_ratio` 없음 (품질 실패로 집계되지 않음) |
+| 외부·내장 혼합 | `success` | retriever 3개가 `builtins`(`page_only`), `dotenv`·`streamlit`(`exact_match`) 순서 | `exact_resolution_ratio` 2/3, `cited_source_count` 2 |
 | 확인 불가 인스턴스 | `success` | root metadata `unresolvedTargetCount` ≥ 1, 해당 대상은 문서 조회 안 됨 | 허위 출처 없음 → `citation_integrity_passed` true |
 | 문법 오류 | `input_rejected` | root·`validate_input.analyze_code`가 WARNING, generation 0개, 비용 0 | 없음 (Tool 검증 전 종료) |
 
@@ -47,6 +53,7 @@
 | --- | --- |
 | Langfuse prompt 조회 실패 | 로컬 프롬프트로 정상 응답, `prompt.resolve` WARNING, `promptFallbackReason=fetch_failed` |
 | docs.python.org 응답 없음 | 해당 retriever WARNING과 `errorType`, 응답은 계속 생성 |
+| 서드파티 문서 사이트 응답 없음 | 해당 retriever `status=unavailable`·WARNING, URL은 패키지 문서 홈, 응답은 계속 생성 |
 | 잘못된 OpenAI 키 | root ERROR, `outcome=runtime_error` |
 | Langfuse 키 제거 또는 서버 차단 | 앱은 정상 동작, 로그에 `event=telemetry_export_failed` 또는 `telemetry_disabled` |
 
