@@ -75,6 +75,9 @@ class DocumentationEvidence(BaseModel):
     title: str
     excerpt: str
     url: str
+    error_type: Optional[str] = Field(
+        default=None, description="Exception class name when status is unavailable"
+    )
 
 
 class DecodePipelineEvidence(BaseModel):

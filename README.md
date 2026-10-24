@@ -13,13 +13,14 @@ OpenAI Agents SDK와 Streamlit으로 만든 Python 코드 이해 학습 도구�
 - 설명 수준을 Beginner 또는 Developer로 선택할 수 있습니다.
 - 주변 코드를 선택적으로 붙여 넣어 Why 설명에 맥락을 제공할 수 있습니다.
 - 매 실행마다 이해 확인 질문 하나를 생성합니다.
-- SDK tracing은 기본 비활성화되어 있으며 앱은 코드를 데이터베이스나 파일에 저장하지 않습니다.
+- Langfuse tracing은 기본 비활성화되어 있습니다. 켜면 실행 구조·모델 사용량·검증 결과를 기록하되, 기본 설정에서는 코드 원문을 보내지 않습니다.
+- 앱 자체는 코드를 데이터베이스나 파일에 저장하지 않습니다.
 
 코드와 주변 맥락은 응답 생성을 위해 OpenAI API로 전송됩니다. 공식 문서를 가져올 때에는 식별된 모듈과 심볼에 해당하는 Python 문서 페이지를 요청합니다.
 
 ## 실행
 
-Python 3.9 이상을 사용합니다.
+Python 3.11 이상을 사용합니다. (Langfuse Python SDK v5 요구사항)
 
 ```bash
 python -m venv .venv
@@ -34,9 +35,44 @@ cp .env.example .env
 streamlit run app.py
 ```
 
-`OPENAI_MODEL`로 사용할 모델을 바꿀 수 있습니다. 기본값은 `gpt-4.1-mini`입니다. Streamlit 배포에서는 환경 변수 또는 `.streamlit/secrets.toml`에 `OPENAI_API_KEY`를 설정하세요.
+모델과 파라미터는 Langfuse 프롬프트 config로 관리합니다(아래 "Prompt 관리"). `OPENAI_MODEL`은 긴급 교체용이며, 설정하면 프롬프트의 model·temperature·reasoning effort를 모두 무시하고 그 모델만 파라미터 없이 호출합니다. 기본 모델은 `gpt-4.1-mini`입니다. Streamlit 배포에서는 환경 변수 또는 `.streamlit/secrets.toml`에 `OPENAI_API_KEY`를 설정하세요.
 
-Agents SDK trace가 필요한 경우 `OPENAI_AGENTS_ENABLE_TRACING=1`로 설정합니다. 코드와 도구 입출력이 trace에 포함될 수 있으므로 필요한 경우에만 켜세요.
+검증된 버전 조합으로 설치하려면 `pip install -r requirements-lock.txt`를 사용합니다.
+
+### Langfuse tracing
+
+`.env`에 `LANGFUSE_ENABLED=1`과 `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`을 모두 설정하면 켜집니다. Decode 1회가 Langfuse trace 1개로 기록되고, 같은 브라우저 세션의 실행은 하나의 session으로 묶입니다. Tool 계약·출처 검증 통과 여부, 문서 근거 비율 같은 품질 점수가 자동으로 기록되고, 결과 아래 👍/👎를 누르면 사용자 피드백 점수도 같은 trace에 남습니다.
+
+데이터 전송·저장 정책:
+
+- 앱 자체 DB나 파일에는 코드를 저장하지 않습니다.
+- 응답 생성을 위해 코드와 주변 코드는 OpenAI API로 전송됩니다.
+- Langfuse에는 기본적으로 **원문 없이** 길이, 분석 대상 수, 문서 조회 상태, 검증 결과, 모델·토큰·지연 시간만 기록합니다. 외부 패키지명, 예외 메시지, 모델 응답 본문도 보내지 않습니다.
+- `LANGFUSE_CAPTURE_CONTENT=1`은 `LANGFUSE_TRACING_ENVIRONMENT=local`일 때만 적용되며, 이때는 코드와 응답 원문이 Langfuse에 저장될 수 있습니다. 다른 환경에서는 자동으로 0으로 바뀝니다.
+- OpenAI 플랫폼 trace로는 전송하지 않습니다. tracing을 끄면 Agents SDK trace 자체를 만들지 않습니다.
+
+### Prompt 관리
+
+시스템 프롬프트는 Langfuse의 `code-decoder/system`(text prompt)에서 `LANGFUSE_PROMPT_LABEL`(기본 `production`) label 버전을 읽어 씁니다. 해당 버전이 모든 LLM 호출(generation)에 연결되므로 Langfuse에서 프롬프트 버전별 품질·비용을 비교할 수 있습니다.
+
+- 조회 실패, prompt 형식·`schemaVersion`·config 오류가 있으면 `agent/prompts.py`의 로컬 프롬프트 전체로 대체합니다. 이때 trace에는 `promptVersion=fallback-<hash>`와 대체 사유가 남습니다.
+- 새 버전 만들기: `python scripts/seed_prompts.py --message "변경 내용"` → `staging` label로만 생성됩니다. `LANGFUSE_PROMPT_LABEL=staging`으로 확인한 뒤 Langfuse UI에서 `production` label을 옮겨 배포하고, 되돌릴 때는 이전 버전으로 label을 옮깁니다.
+- prompt config의 `model`, `temperature`, `reasoningEffort`를 **하나의 모델 설정 묶음**으로 함께 적용합니다. 파라미터는 그 모델에 맞게 쓴 값이라 섞지 않습니다.
+  - `temperature`(0~2)·`reasoningEffort`(`none`·`minimal`·`low`·`medium`·`high`·`xhigh`·`max`)는 없거나 `null`이면 **보내지 않고** 모델 기본값을 씁니다. reasoning 모델이 거부하는 파라미터를 실수로 보내지 않기 위해서입니다.
+  - 범위를 벗어나거나 형식이 틀린 값은 config 오류로 보고 로컬 프롬프트로 대체합니다.
+  - `.env`의 `OPENAI_MODEL`이 있으면 묶음 전체를 대체합니다(파라미터 없이 그 모델만 사용).
+- `DecodeResult` 형식이나 Tool 계약이 바뀌면 `PROMPT_SCHEMA_VERSION`을 올리고 새 버전을 seed합니다. 이전 schema의 원격 프롬프트는 자동으로 무시됩니다.
+
+설계 문서: [`docs/langfuse-tracing-plan.md`](docs/langfuse-tracing-plan.md)
+
+### 테스트
+
+```bash
+pip install pytest
+python -m pytest tests
+```
+
+테스트는 OpenAI 응답을 HTTP 계층에서 흉내 내고 Langfuse export를 메모리로 받아, 실제로 내보내질 span에 원문이 없는지와 trace 구조를 검증합니다.
 
 ## 프로젝트 구조
 
@@ -44,12 +80,14 @@ Agents SDK trace가 필요한 경우 `OPENAI_AGENTS_ENABLE_TRACING=1`로 설정�
 agent/
   analyzer.py       Python AST 분석
   planner.py        학습 대상 우선순위와 설명 순서 선정
-  workflow.py       분석·계획·문서 조회 순서 강제
+  pipeline.py       분석·계획·문서 조회 순서 강제
   documentation.py  공식 Python 문서 조회
   quality.py        최종 응답의 문서 근거 검증
   tools.py          Agents SDK 함수 도구
-  prompts.py        What/Why/Source/Example/Check 지침
+  prompts.py        로컬 프롬프트·config와 Langfuse 프롬프트 조회/대체
   models.py         분석 및 구조화 응답 모델
-  decoder.py        Agent와 Runner 구성
+  decoder.py        Agent와 Runner 구성, decode trace root
+  observability.py  Langfuse 초기화, observation·score helper, export masking
+  observability_fields.py  trace에 내보내는 metadata·score·속성 registry
 app.py              Streamlit 데모
 ```

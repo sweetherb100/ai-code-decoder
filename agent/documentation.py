@@ -158,4 +158,5 @@ def lookup_documentation(module: str, symbol: str) -> DocumentationEvidence:
             title=title,
             excerpt=f"공식 문서를 지금 가져오지 못했습니다 ({type(exc).__name__}). URL을 확인해 주세요.",
             url=url,
+            error_type=type(exc).__name__,
         )
