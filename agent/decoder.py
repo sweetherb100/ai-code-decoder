@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import dataclass, replace
 from typing import Any, Literal, Optional
 
-from agents import Agent, ModelSettings, Runner
+from agents import Agent, ModelSettings, RunConfig, Runner
 from openai.types.shared import Reasoning
 from agents.exceptions import MaxTurnsExceeded, ModelBehaviorError
 
@@ -28,9 +28,9 @@ from agent.observability import (
     root_metadata,
     trace_url,
 )
-from agent.observability_fields import GROUNDING_ISSUE_PRIORITY
+from agent.observability_fields import CITATION_ISSUE_PRIORITY
 from agent.prompts import PROMPT_NAME, resolve_instructions
-from agent.quality import DecodeQualityError, validate_decode_result
+from agent.quality import DecodeQualityError, is_single_question_format, validate_decode_result
 from agent.run_context import DecodeRunContext, ToolContractError
 from agent.tools import decode_code_pipeline_tool
 
@@ -46,7 +46,7 @@ class AgentBehaviorError(RuntimeError):
 OUTCOME_BY_ERROR = {
     CodeAnalysisError: ("WARNING", "input_rejected"),
     ToolContractError: ("ERROR", "tool_contract_failed"),
-    DecodeQualityError: ("ERROR", "grounding_failed"),
+    DecodeQualityError: ("ERROR", "citation_integrity_failed"),
     MaxTurnsExceeded: ("ERROR", "agent_behavior_failed"),
     ModelBehaviorError: ("ERROR", "agent_behavior_failed"),
     AgentBehaviorError: ("ERROR", "agent_behavior_failed"),
@@ -149,22 +149,21 @@ def _decode(
             output={
                 "source": prompt.source,
                 "version": prompt.version,
-                "modelSource": prompt.model_source,
-                "temperature": prompt.temperature,
-                "temperatureSource": prompt.temperature_source,
-                "reasoningEffort": prompt.reasoning_effort,
+                "modelSource": prompt.inference.source,
+                "temperature": prompt.inference.temperature,
+                "reasoningEffort": prompt.inference.reasoning_effort,
                 "fallbackReason": prompt.fallback_reason,
             }
         )
         if prompt.fallback_reason not in (None, "disabled"):
             prompt_span.update(level="WARNING", status_message=prompt.fallback_reason)
-    metadata["model"] = prompt.model
-    metadata["modelSource"] = prompt.model_source
-    if prompt.temperature is not None:
-        metadata["temperature"] = prompt.temperature
-    metadata["temperatureSource"] = prompt.temperature_source
-    if prompt.reasoning_effort is not None:
-        metadata["reasoningEffort"] = prompt.reasoning_effort
+    inference = prompt.inference
+    metadata["model"] = inference.model
+    metadata["modelSource"] = inference.source
+    if inference.temperature is not None:
+        metadata["temperature"] = inference.temperature
+    if inference.reasoning_effort is not None:
+        metadata["reasoningEffort"] = inference.reasoning_effort
     metadata["promptSource"] = prompt.source
     metadata["promptVersion"] = prompt.version
     if prompt.fallback_reason:
@@ -176,13 +175,13 @@ def _decode(
     agent = Agent(
         name="AI Code Decode Agent",
         instructions=prompt.instructions,
-        model=prompt.model,
+        model=inference.model,
         tools=[decode_code_pipeline_tool],
         model_settings=ModelSettings(
-            temperature=prompt.temperature,
+            temperature=inference.temperature,
             reasoning=(
-                Reasoning(effort=prompt.reasoning_effort)
-                if prompt.reasoning_effort is not None
+                Reasoning(effort=inference.reasoning_effort)
+                if inference.reasoning_effort is not None
                 else None
             ),
             tool_choice="decode_code_pipeline",
@@ -201,7 +200,15 @@ def _decode(
         f"Audience level: {level}. Return all fields in {DecodeResult.__name__}."
     )
     with linked_prompt(prompt.remote, level=level, prompt_source=prompt.source):
-        result = Runner.run_sync(agent, user_input, context=run_context, max_turns=MAX_TURNS)
+        result = Runner.run_sync(
+            agent,
+            user_input,
+            context=run_context,
+            max_turns=MAX_TURNS,
+            # Keeps model inputs/outputs and raw error text (str(exc), which can
+            # echo the API response) out of SDK span data unless capture is on.
+            run_config=RunConfig(trace_include_sensitive_data=capture_content()),
+        )
     metadata["llmCallCount"] = len(result.raw_responses)
     if not isinstance(result.final_output, DecodeResult):
         raise AgentBehaviorError("에이전트가 정해진 디코드 응답 형식으로 답하지 않았습니다.")
@@ -232,23 +239,23 @@ def _decode(
 
     exact_count = metadata["docsExactMatchCount"]
     with observation(
-        "validate_output.grounding",
+        "validate_output.citation_integrity",
         as_type="evaluator",
         input={"exactEvidenceCount": exact_count, "citedCount": len(result.final_output.source)},
-        expected={DecodeQualityError: ("ERROR", "grounding_failed")},
-    ) as grounding_span:
+        expected={DecodeQualityError: ("ERROR", "citation_integrity_failed")},
+    ) as citation_span:
         try:
             validated_result = validate_decode_result(
                 result.final_output,
                 pipeline_evidence.documentation,
             )
         except DecodeQualityError as exc:
-            grounding_span.update(output={"passed": False, "issueCodes": list(exc.issue_codes)})
-            root.score("grounding_passed", False)
-            root.score("grounding_issue", _representative_issue(exc.issue_codes))
+            citation_span.update(output={"passed": False, "issueCodes": list(exc.issue_codes)})
+            root.score("citation_integrity_passed", False)
+            root.score("citation_issue", _representative_issue(exc.issue_codes))
             raise
-        grounding_span.update(output={"passed": True, "issueCodes": []})
-        root.score("grounding_passed", True)
+        citation_span.update(output={"passed": True, "issueCodes": []})
+        root.score("citation_integrity_passed", True)
 
     return DecodeExecution(
         result=validated_result,
@@ -278,12 +285,12 @@ def _score_answer(
         cited = {source.source_id for source in answer.source} & exact_ids
         root.score("citation_coverage", len(cited) / len(exact_ids))
     root.score("cited_source_count", len(answer.source))
-    # Format check only: exactly one question mark, not semantic single-question.
-    root.score("check_format_passed", answer.check.count("?") + answer.check.count("？") == 1)
+    # Records the guardrail result before validate_decode_result enforces it.
+    root.score("check_format_passed", is_single_question_format(answer.check))
 
 
 def _representative_issue(issue_codes: tuple[str, ...]) -> str:
-    for code in GROUNDING_ISSUE_PRIORITY:
+    for code in CITATION_ISSUE_PRIORITY:
         if code in issue_codes:
             return code
     return issue_codes[0] if issue_codes else "unknown"

@@ -1,4 +1,4 @@
-"""Prompt resolution: remote prompt, atomic fallback, and model precedence."""
+"""Prompt resolution: remote prompt, atomic fallback, and the inference bundle."""
 
 from __future__ import annotations
 
@@ -6,16 +6,17 @@ from typing import Any
 
 import pytest
 
+from agent.observability_fields import PROMPT_FALLBACK_REASONS
 from agent.prompts import (
-    DEFAULT_TEMPERATURE,
+    DEFAULT_MODEL,
     LEVEL_STYLES,
     LOCAL_PROMPT_CONFIG,
     LOCAL_PROMPT_VERSION,
     PROMPT_SCHEMA_VERSION,
+    InferenceConfig,
     instructions_for_level,
     resolve_instructions,
 )
-from agent.observability_fields import PROMPT_FALLBACK_REASONS
 from tests.conftest import make_text_prompt
 
 
@@ -40,6 +41,15 @@ def config(**overrides: Any) -> dict[str, Any]:
     return {**LOCAL_PROMPT_CONFIG, **overrides}
 
 
+def without(*keys: str) -> dict[str, Any]:
+    return {k: v for k, v in LOCAL_PROMPT_CONFIG.items() if k not in keys}
+
+
+def resolve(prompt_config: Any = None, **prompt_kwargs: Any):
+    prompt = make_text_prompt(config=prompt_config, **prompt_kwargs)
+    return resolve_instructions("Beginner", FakeClient(prompt), "production")
+
+
 def test_remote_prompt_is_used_with_its_config():
     custom = config(model="gpt-4.1", levelStyles={**LEVEL_STYLES, "Developer": "Be terse."})
     client = FakeClient(make_text_prompt(config=custom, version=5))
@@ -47,17 +57,11 @@ def test_remote_prompt_is_used_with_its_config():
     assert resolved.source == "langfuse"
     assert resolved.version == "5"
     assert resolved.instructions.endswith("Audience level: Developer. Be terse.")
-    assert (resolved.model, resolved.model_source) == ("gpt-4.1", "prompt_config")
+    assert resolved.inference == InferenceConfig(model="gpt-4.1", source="prompt_config")
     assert resolved.remote is client.result
     call = client.calls[0]
     assert call["label"] == "staging" and call["type"] == "text"
     assert call["max_retries"] == 1 and call["fetch_timeout_seconds"] == 2
-
-
-def test_env_model_overrides_prompt_config(monkeypatch):
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-env")
-    resolved = resolve_instructions("Beginner", FakeClient(make_text_prompt()), "production")
-    assert (resolved.model, resolved.model_source) == ("gpt-env", "env")
 
 
 def test_disabled_telemetry_uses_local_prompt():
@@ -66,7 +70,7 @@ def test_disabled_telemetry_uses_local_prompt():
     assert resolved.fallback_reason == "disabled"
     assert resolved.instructions == instructions_for_level("Beginner")
     assert resolved.version == LOCAL_PROMPT_VERSION
-    assert (resolved.model, resolved.model_source) == ("gpt-4.1-mini", "default")
+    assert resolved.inference == InferenceConfig(model=DEFAULT_MODEL, source="default")
 
 
 def _fallback_prompt():
@@ -100,12 +104,11 @@ def test_any_failure_falls_back_to_the_whole_local_prompt(result, reason):
     assert resolved.source == "fallback"
     assert resolved.fallback_reason == reason
     assert reason in PROMPT_FALLBACK_REASONS
-    # Never a mix: local instructions, local version, no prompt link.
+    # Never a mix: local instructions, local version, no link, default inference.
     assert resolved.instructions == instructions_for_level("Beginner")
     assert resolved.version == LOCAL_PROMPT_VERSION
     assert resolved.remote is None
-    assert (resolved.temperature, resolved.temperature_source) == (DEFAULT_TEMPERATURE, "default")
-    assert resolved.reasoning_effort is None
+    assert resolved.inference == InferenceConfig(model=DEFAULT_MODEL, source="default")
 
 
 def test_chat_prompt_is_a_type_mismatch():
@@ -123,38 +126,35 @@ def test_fallback_version_identifies_the_local_template():
     assert len(LOCAL_PROMPT_VERSION) == len("fallback-") + 12
 
 
-def _without_temperature() -> dict[str, Any]:
-    return {k: v for k, v in LOCAL_PROMPT_CONFIG.items() if k != "temperature"}
+@pytest.mark.parametrize(
+    ("prompt_config", "temperature", "effort"),
+    [
+        (config(temperature=0.2), 0.2, None),
+        (config(temperature=0), 0.0, None),
+        (config(temperature=2), 2.0, None),
+        (config(temperature=None), None, None),
+        (without("temperature"), None, None),  # missing -> provider default, not sent
+        (config(reasoningEffort="low"), None, "low"),
+        (config(reasoningEffort="high", temperature=1), 1.0, "high"),
+    ],
+)
+def test_parameters_come_from_prompt_config(prompt_config, temperature, effort):
+    resolved = resolve(prompt_config)
+    assert resolved.source == "langfuse"
+    assert resolved.inference.source == "prompt_config"
+    assert (resolved.inference.temperature, resolved.inference.reasoning_effort) == (temperature, effort)
 
 
 @pytest.mark.parametrize(
-    ("prompt_config", "expected"),
+    "prompt_config",
     [
-        (config(temperature=0.2), (0.2, "prompt_config")),
-        (config(temperature=0), (0.0, "prompt_config")),
-        (config(temperature=2), (2.0, "prompt_config")),
-        (config(temperature=None), (None, "prompt_config")),  # omit for reasoning models
-        (_without_temperature(), (DEFAULT_TEMPERATURE, "default")),
+        config(model="reasoning-model", reasoningEffort="high", temperature=None),
+        config(model="gpt-4.1-mini", temperature=1.0),
     ],
 )
-def test_temperature_comes_from_prompt_config(prompt_config, expected):
-    resolved = resolve_instructions("Beginner", FakeClient(make_text_prompt(config=prompt_config)), "production")
-    assert resolved.source == "langfuse"
-    assert (resolved.temperature, resolved.temperature_source) == expected
-
-
-@pytest.mark.parametrize(
-    ("prompt_config", "expected"),
-    [
-        (config(), (None, DEFAULT_TEMPERATURE)),
-        (config(reasoningEffort=None), (None, DEFAULT_TEMPERATURE)),
-        # Reasoning models often reject temperature, so a missing one is omitted.
-        ({**_without_temperature(), "reasoningEffort": "low"}, ("low", None)),
-        # An explicit temperature is still honored.
-        (config(reasoningEffort="high", temperature=1), ("high", 1.0)),
-    ],
-)
-def test_reasoning_effort_comes_from_prompt_config(prompt_config, expected):
-    resolved = resolve_instructions("Beginner", FakeClient(make_text_prompt(config=prompt_config)), "production")
-    assert resolved.source == "langfuse"
-    assert (resolved.reasoning_effort, resolved.temperature) == expected
+def test_env_model_override_drops_prompt_parameters(monkeypatch, prompt_config):
+    """OPENAI_MODEL replaces the whole bundle; it never inherits another model's params."""
+    monkeypatch.setenv("OPENAI_MODEL", "some-other-model")
+    resolved = resolve(prompt_config)
+    assert resolved.source == "langfuse"  # the prompt text is still the remote one
+    assert resolved.inference == InferenceConfig(model="some-other-model", source="env")

@@ -13,7 +13,7 @@ import logging
 import os
 import threading
 from collections.abc import Iterator, Mapping
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
@@ -26,6 +26,7 @@ from agent.observability_fields import (
     ROOT_OBSERVATION_NAME,
     SCORE_TYPES,
     TRACE_NAME,
+    allowed_payload_keys,
     is_allowed_attribute,
 )
 
@@ -52,18 +53,18 @@ class ObservabilitySettings:
     prompt_label: str = "production"
     capture_forced_off: bool = False
     missing_credentials: bool = False
+    invalid_sample_rate: bool = False
 
 
 def load_settings(env: Mapping[str, str] = os.environ) -> ObservabilitySettings:
     """Resolve telemetry settings from environment variables."""
     requested = env.get("LANGFUSE_ENABLED", "").lower() in _TRUTHY
     has_credentials = all(env.get(key) for key in _CREDENTIAL_KEYS)
-    environment = env.get("LANGFUSE_TRACING_ENVIRONMENT") or "local"
+    # Fail closed: a missing environment is "unknown", never "local", so raw
+    # content capture needs an explicit LANGFUSE_TRACING_ENVIRONMENT=local.
+    environment = env.get("LANGFUSE_TRACING_ENVIRONMENT") or "unknown"
     capture_requested = env.get("LANGFUSE_CAPTURE_CONTENT", "").lower() in _TRUTHY
-    try:
-        sample_rate = float(env.get("LANGFUSE_SAMPLE_RATE") or 1.0)
-    except ValueError:
-        sample_rate = 1.0
+    sample_rate, invalid_sample_rate = _sample_rate(env.get("LANGFUSE_SAMPLE_RATE"))
     return ObservabilitySettings(
         enabled=requested and has_credentials,
         environment=environment,
@@ -75,7 +76,21 @@ def load_settings(env: Mapping[str, str] = os.environ) -> ObservabilitySettings:
         show_trace_link=env.get("LANGFUSE_SHOW_TRACE_LINK", "").lower() in _TRUTHY,
         prompt_label=env.get("LANGFUSE_PROMPT_LABEL") or "production",
         missing_credentials=requested and not has_credentials,
+        invalid_sample_rate=invalid_sample_rate,
     )
+
+
+def _sample_rate(raw: Optional[str]) -> tuple[float, bool]:
+    """Parse a 0.0-1.0 sample rate; invalid values fall back to full collection."""
+    if not raw:
+        return 1.0, False
+    try:
+        value = float(raw)
+    except ValueError:
+        return 1.0, True
+    if not 0.0 <= value <= 1.0:
+        return 1.0, True
+    return value, False
 
 
 def log_event(event: str, **fields: object) -> None:
@@ -108,6 +123,8 @@ def init_observability(*, span_exporter: Any = None) -> ObservabilitySettings:
             log_event("telemetry_disabled", reason="missing_credentials")
         if settings.capture_forced_off:
             log_event("telemetry_capture_forced_off", environment=settings.environment)
+        if settings.invalid_sample_rate:
+            log_event("telemetry_invalid_sample_rate", using=settings.sample_rate)
         if not settings.enabled:
             # Without this the Agents SDK keeps its default exporter and sends
             # traces to the OpenAI platform.
@@ -126,11 +143,22 @@ def init_observability(*, span_exporter: Any = None) -> ObservabilitySettings:
         return settings
 
 
+def active_settings() -> ObservabilitySettings:
+    """Return the settings actually in effect after initialization.
+
+    Unlike load_settings(), this reflects an initialization failure.
+    """
+    return init_observability()
+
+
 def _create_client(settings: ObservabilitySettings, span_exporter: Any) -> Any:
     from langfuse import Langfuse
     from openinference.instrumentation import TraceConfig
     from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
 
+    # The manual flag overrides OPENAI_AGENTS_DISABLE_TRACING; without it a stray
+    # env var would silently drop every Agent/LLM/Tool span.
+    set_tracing_disabled(False)
     client = Langfuse(
         environment=settings.environment,
         release=settings.release,
@@ -201,8 +229,9 @@ def _install_export_failure_logging() -> None:
 class Observation:
     """Fail-open wrapper around a Langfuse observation (or nothing when disabled)."""
 
-    def __init__(self, span: Any = None) -> None:
+    def __init__(self, span: Any = None, name: str = "") -> None:
         self._span = span
+        self._name = name
 
     @property
     def trace_id(self) -> Optional[str]:
@@ -216,6 +245,11 @@ class Observation:
         if self._span is None:
             return
         try:
+            for field in ("input", "output"):
+                if field in fields:
+                    fields[field] = filter_payload(self._name, field, fields[field])
+            if "metadata" in fields and fields["metadata"] is not None:
+                fields["metadata"] = root_metadata(fields["metadata"])
             self._span.update(**fields)
         except Exception as exc:
             log_event("telemetry_update_failed", error=type(exc).__name__)
@@ -292,8 +326,10 @@ def observation(
     observed = Observation()
     if client is not None:
         try:
-            manager = client.start_as_current_observation(name=name, as_type=as_type, input=input)
-            observed = Observation(manager.__enter__())
+            manager = client.start_as_current_observation(
+                name=name, as_type=as_type, input=filter_payload(name, "input", input)
+            )
+            observed = Observation(manager.__enter__(), name)
         except Exception as exc:
             log_event("telemetry_observation_failed", name=name, error=type(exc).__name__)
             manager = None
@@ -336,15 +372,34 @@ def decode_trace(
 
 
 def _propagate(*, session_id: Optional[str], tags: list[str]):
-    if _state is None or _state.client is None:
-        return nullcontext()
-    try:
-        from langfuse import propagate_attributes
+    return _safe_propagation(session_id=session_id, tags=tags, trace_name=TRACE_NAME)
 
-        return propagate_attributes(session_id=session_id, tags=tags, trace_name=TRACE_NAME)
-    except Exception as exc:
-        log_event("telemetry_propagation_failed", error=type(exc).__name__)
-        return nullcontext()
+
+@contextmanager
+def _safe_propagation(**attributes: Any) -> Iterator[None]:
+    """Enter Langfuse attribute propagation without letting it fail the decode.
+
+    propagate_attributes() only builds a context manager; the real work happens
+    in __enter__/__exit__, so those are guarded too.
+    """
+    manager = None
+    if _state is not None and _state.client is not None:
+        try:
+            from langfuse import propagate_attributes
+
+            manager = propagate_attributes(**attributes)
+            manager.__enter__()
+        except Exception as exc:
+            log_event("telemetry_propagation_failed", error=type(exc).__name__)
+            manager = None
+    try:
+        yield
+    finally:
+        if manager is not None:
+            try:
+                manager.__exit__(None, None, None)
+            except Exception as exc:
+                log_event("telemetry_propagation_failed", error=type(exc).__name__)
 
 
 def prompt_client() -> Any:
@@ -361,18 +416,27 @@ def linked_prompt(remote_prompt: Any, *, level: str, prompt_source: str):
 
     Fallback prompts are not Langfuse versions, so they are never linked.
     """
-    if _state is None or _state.client is None:
-        return nullcontext()
-    try:
-        from langfuse import propagate_attributes
+    tags = [APP_TAG, f"level:{level.lower()}", f"prompt_source:{prompt_source}"]
+    if remote_prompt is None:
+        return _safe_propagation(tags=tags)
+    return _safe_propagation(prompt=remote_prompt, tags=tags)
 
-        tags = [APP_TAG, f"level:{level.lower()}", f"prompt_source:{prompt_source}"]
-        if remote_prompt is None:
-            return propagate_attributes(tags=tags)
-        return propagate_attributes(prompt=remote_prompt, tags=tags)
-    except Exception as exc:
-        log_event("telemetry_propagation_failed", error=type(exc).__name__)
-        return nullcontext()
+
+def filter_payload(name: str, field: str, value: Any) -> Any:
+    """Keep only the input/output keys registered for this observation."""
+    if value is None:
+        return None
+    allowed = allowed_payload_keys(name, field, capture_content=capture_content())
+    if not isinstance(value, Mapping):
+        log_event("telemetry_payload_dropped", name=name, field=field)
+        return None
+    kept = {}
+    for key, item in value.items():
+        if key in allowed:
+            kept[key] = item
+        else:
+            log_event("telemetry_payload_key_dropped", name=name, field=field, key=key)
+    return kept
 
 
 def root_metadata(values: Mapping[str, Any]) -> dict[str, Any]:

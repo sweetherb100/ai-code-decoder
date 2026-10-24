@@ -14,7 +14,7 @@ load_dotenv()
 
 from agent.analyzer import CodeAnalysisError, MAX_CODE_CHARACTERS  # noqa: E402
 from agent.decoder import DecodeExecution, decode_code  # noqa: E402
-from agent.observability import load_settings, record_user_feedback  # noqa: E402
+from agent.observability import active_settings, record_user_feedback  # noqa: E402
 from agent.quality import DecodeQualityError  # noqa: E402
 
 st.set_page_config(page_title="AI Code Decode", page_icon="🔎", layout="wide")
@@ -120,7 +120,7 @@ def _render_execution_evidence(execution: DecodeExecution) -> None:
 
     if execution.trace_url:
         st.markdown(f"[Langfuse trace 열기]({execution.trace_url})")
-    elif load_settings().enabled:
+    elif active_settings().enabled:
         st.caption(
             "Langfuse tracing이 활성화되어 있습니다. 기본 설정에서는 코드 원문 없이 "
             "구조 정보와 모델 사용량만 기록합니다."

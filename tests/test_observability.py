@@ -30,18 +30,25 @@ def test_enabled_requires_flag_and_all_credentials():
     assert load_settings({**CREDENTIALS, "LANGFUSE_ENABLED": "1"}).enabled
 
 
-def test_content_capture_is_forced_off_outside_local():
-    local = load_settings({"LANGFUSE_CAPTURE_CONTENT": "1"})
+def test_content_capture_requires_an_explicit_local_environment():
+    local = load_settings({"LANGFUSE_CAPTURE_CONTENT": "1", "LANGFUSE_TRACING_ENVIRONMENT": "local"})
     assert local.capture_content and not local.capture_forced_off
     remote = load_settings(
         {"LANGFUSE_CAPTURE_CONTENT": "1", "LANGFUSE_TRACING_ENVIRONMENT": "production"}
     )
     assert not remote.capture_content and remote.capture_forced_off
+    # Fail closed: a missing environment is not treated as local.
+    missing = load_settings({"LANGFUSE_CAPTURE_CONTENT": "1"})
+    assert missing.environment == "unknown"
+    assert not missing.capture_content and missing.capture_forced_off
 
 
-def test_sample_rate_defaults_to_full_collection():
+def test_sample_rate_is_validated():
     assert load_settings({}).sample_rate == 1.0
-    assert load_settings({"LANGFUSE_SAMPLE_RATE": "not-a-number"}).sample_rate == 1.0
+    assert load_settings({"LANGFUSE_SAMPLE_RATE": "0.25"}).sample_rate == 0.25
+    for bad in ("not-a-number", "1.5", "-0.1"):
+        settings = load_settings({"LANGFUSE_SAMPLE_RATE": bad})
+        assert settings.sample_rate == 1.0 and settings.invalid_sample_rate
 
 
 def test_metadata_keys_are_langfuse_safe():
@@ -76,7 +83,7 @@ class _BrokenSpan:
 def test_observation_wrapper_is_fail_open():
     span = Observation(_BrokenSpan())
     span.update(output={"a": 1})
-    span.score("grounding_passed", True)
+    span.score("citation_integrity_passed", True)
 
 
 def test_observation_reraises_the_original_exception():
@@ -132,9 +139,9 @@ def test_disabled_mode_creates_no_agent_traces():
 
 
 def test_score_values_follow_registered_types():
-    assert observability._score_value("grounding_passed", False) == ("BOOLEAN", 0.0)
+    assert observability._score_value("citation_integrity_passed", False) == ("BOOLEAN", 0.0)
     assert observability._score_value("cited_source_count", 2) == ("NUMERIC", 2.0)
-    assert observability._score_value("grounding_issue", "missing_field") == (
+    assert observability._score_value("citation_issue", "missing_field") == (
         "CATEGORICAL",
         "missing_field",
     )
@@ -142,11 +149,12 @@ def test_score_values_follow_registered_types():
         observability._score_value("made_up_score", 1)
 
 
-def test_representative_grounding_issue_uses_priority():
+def test_representative_citation_issue_uses_priority():
     from agent.decoder import _representative_issue
 
     assert _representative_issue(("missing_source", "unverified_source")) == "unverified_source"
     assert _representative_issue(("missing_field", "duplicate_source")) == "missing_field"
+    assert _representative_issue(("invalid_check_format", "missing_source")) == "missing_source"
 
 
 def test_user_feedback_uses_a_stable_score_id(monkeypatch):
@@ -167,3 +175,76 @@ def test_user_feedback_uses_a_stable_score_id(monkeypatch):
 def test_user_feedback_without_trace_is_ignored(monkeypatch):
     monkeypatch.setattr(observability, "_state", None)
     observability.record_user_feedback(None, None, positive=True)
+
+
+
+def _run_isolated(script: str) -> subprocess.CompletedProcess:
+    """Tracing configuration is process-global, so these run in a fresh process."""
+    root = Path(__file__).resolve().parent.parent
+    return subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(script)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+_ENABLED_ENV = """
+import os
+os.environ.update({
+    "LANGFUSE_ENABLED": "1", "LANGFUSE_PUBLIC_KEY": "pk", "LANGFUSE_SECRET_KEY": "sk",
+    "LANGFUSE_BASE_URL": "http://127.0.0.1:9", "LANGFUSE_TRACING_ENVIRONMENT": "test",
+})
+"""
+
+
+def test_langfuse_enabled_overrides_agents_disable_env():
+    """OPENAI_AGENTS_DISABLE_TRACING must not silently drop Agent/LLM/Tool spans."""
+    completed = _run_isolated(
+        _ENABLED_ENV
+        + """
+os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "1"
+import httpx
+from openai import AsyncOpenAI
+from agents import set_default_openai_client
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from tests.conftest import FakeOpenAI
+from agent import observability, pipeline
+from agent.models import DocumentationEvidence
+
+fake = FakeOpenAI()
+set_default_openai_client(AsyncOpenAI(api_key="sk-test",
+    http_client=httpx.AsyncClient(transport=httpx.MockTransport(fake.handler))))
+pipeline.lookup_documentation = lambda m, s: DocumentationEvidence(
+    source_id="", status="unsupported", module=m, symbol=s, title="", excerpt="", url="")
+exporter = InMemorySpanExporter()
+observability.init_observability(span_exporter=exporter)
+observability._state.client.get_prompt = lambda *a, **k: (_ for _ in ()).throw(RuntimeError())
+from agent.decoder import decode_code
+decode_code("print(len('a'))", "Beginner")
+observability.flush()
+kinds = {(s.attributes or {}).get("openinference.span.kind") for s in exporter.get_finished_spans()}
+assert {"LLM", "TOOL"} <= kinds, kinds
+print("ok")
+"""
+    )
+    assert completed.returncode == 0, completed.stderr[-2000:]
+    assert completed.stdout.strip().endswith("ok")
+
+
+def test_ui_state_reflects_initialization_failure():
+    completed = _run_isolated(
+        _ENABLED_ENV
+        + """
+from agent import observability
+def broken(*_a, **_k):
+    raise RuntimeError("langfuse init failed")
+observability._create_client = broken
+assert observability.load_settings().enabled          # env says on
+assert not observability.active_settings().enabled    # but it is actually off
+print("ok")
+"""
+    )
+    assert completed.returncode == 0, completed.stderr[-2000:]
+    assert completed.stdout.strip().endswith("ok")

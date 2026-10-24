@@ -139,7 +139,7 @@ def test_success_trace_invariants(span_exporter, prompt_fetch, fake_openai, stub
     assert set(metadata) <= set(ROOT_METADATA_KEYS)
     assert metadata["llmCallCount"] == 2
     assert metadata["contentCaptured"] is False
-    assert ("tool_contract_passed", True) in scores and ("grounding_passed", True) in scores
+    assert ("tool_contract_passed", True) in scores and ("citation_integrity_passed", True) in scores
     assert execution.trace_id == format(root.context.trace_id, "032x")
 
     assert_no_canary(spans)
@@ -198,13 +198,13 @@ def test_grounding_failure_records_false_score_and_issue_code(span_exporter, pro
         decode_code(CODE, "Beginner")
     spans = export(span_exporter)
     root = root_of(spans)
-    assert root_metadata(root)["outcome"] == "grounding_failed"
-    grounding = next(s for s in spans if s.name == "validate_output.grounding")
+    assert root_metadata(root)["outcome"] == "citation_integrity_failed"
+    grounding = next(s for s in spans if s.name == "validate_output.citation_integrity")
     assert attr(grounding, "langfuse.observation.level") == "ERROR"
-    assert attr(grounding, "langfuse.observation.status_message") == "grounding_failed"
+    assert attr(grounding, "langfuse.observation.status_message") == "citation_integrity_failed"
     assert json.loads(attr(grounding, "langfuse.observation.output"))["issueCodes"] == ["unverified_source"]
     assert ("tool_contract_passed", True) in scores
-    assert ("grounding_passed", False) in scores
+    assert ("citation_integrity_passed", False) in scores
     assert_no_exception_events(spans)
 
 
@@ -278,19 +278,30 @@ def test_answer_quality_scores(span_exporter, prompt_fetch, fake_openai, stub_do
     assert recorded["citation_coverage"] == 1.0
     assert recorded["cited_source_count"] == 1
     assert recorded["check_format_passed"] is True
-    assert "grounding_issue" not in recorded
+    assert "citation_issue" not in recorded
 
 
 def test_ratio_scores_are_skipped_when_denominator_is_zero(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
     stub_docs({"json": "unsupported"})
-    fake_openai.final_text = decode_result_json(check="질문 하나? 그리고 둘?")
     decode_code(CODE, "Beginner")
     export(span_exporter)
     recorded = dict(scores)
     assert "exact_resolution_ratio" not in recorded  # unsupported is not a quality failure
     assert "citation_coverage" not in recorded
     assert recorded["cited_source_count"] == 0
+
+
+def test_check_format_guardrail_blocks_multi_question(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+    stub_docs({"json": "unsupported"})
+    fake_openai.final_text = decode_result_json(check="질문 하나? 그리고 둘?")
+    with pytest.raises(DecodeQualityError):
+        decode_code(CODE, "Beginner")
+    spans = export(span_exporter)
+    assert root_metadata(root_of(spans))["outcome"] == "citation_integrity_failed"
+    recorded = dict(scores)
     assert recorded["check_format_passed"] is False
+    assert recorded["citation_integrity_passed"] is False
+    assert recorded["citation_issue"] == "invalid_check_format"
 
 
 def test_page_only_lowers_exact_resolution(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
@@ -309,55 +320,124 @@ def test_grounding_failure_records_representative_issue(span_exporter, prompt_fe
         decode_code(CODE, "Beginner")
     export(span_exporter)
     recorded = dict(scores)
-    assert recorded["grounding_issue"] == "unverified_source"
+    assert recorded["citation_issue"] == "unverified_source"
     assert recorded["citation_coverage"] == 0.0
 
 
 @pytest.mark.parametrize(("temperature", "sent"), [(0.3, 0.3), (None, None)])
 def test_prompt_temperature_reaches_the_model_request(
-    span_exporter, prompt_fetch, fake_openai, stub_docs, scores, temperature, sent
+    span_exporter, prompt_fetch, fake_openai, stub_docs, scores, monkeypatch, temperature, sent
 ):
     from agent.prompts import LOCAL_PROMPT_CONFIG
     from tests.conftest import make_text_prompt
 
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
     prompt_fetch["result"] = make_text_prompt(config={**LOCAL_PROMPT_CONFIG, "temperature": temperature})
     decode_code(CODE, "Beginner")
     spans = export(span_exporter)
     assert [body.get("temperature") for body in fake_openai.bodies] == [sent, sent]
     metadata = root_metadata(root_of(spans))
-    assert metadata["temperatureSource"] == "prompt_config"
+    assert metadata["modelSource"] == "prompt_config"
     assert metadata.get("temperature") == sent
 
 
-def test_missing_temperature_uses_default(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
-    from agent.prompts import DEFAULT_TEMPERATURE, LOCAL_PROMPT_CONFIG
-    from tests.conftest import make_text_prompt
-
-    legacy = {k: v for k, v in LOCAL_PROMPT_CONFIG.items() if k != "temperature"}
-    prompt_fetch["result"] = make_text_prompt(config=legacy)
-    decode_code(CODE, "Beginner")
-    spans = export(span_exporter)
-    assert [body.get("temperature") for body in fake_openai.bodies] == [DEFAULT_TEMPERATURE] * 2
-    metadata = root_metadata(root_of(spans))
-    assert (metadata["temperature"], metadata["temperatureSource"]) == (DEFAULT_TEMPERATURE, "default")
-
-
-def test_reasoning_effort_reaches_the_model_request(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
+def test_missing_parameters_are_not_sent(span_exporter, prompt_fetch, fake_openai, stub_docs, scores, monkeypatch):
     from agent.prompts import LOCAL_PROMPT_CONFIG
     from tests.conftest import make_text_prompt
 
-    reasoning_config = {k: v for k, v in LOCAL_PROMPT_CONFIG.items() if k != "temperature"}
-    prompt_fetch["result"] = make_text_prompt(config={**reasoning_config, "reasoningEffort": "low"})
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    legacy = {k: v for k, v in LOCAL_PROMPT_CONFIG.items() if k not in ("temperature", "reasoningEffort")}
+    prompt_fetch["result"] = make_text_prompt(config=legacy)
+    decode_code(CODE, "Beginner")
+    spans = export(span_exporter)
+    for body in fake_openai.bodies:
+        assert body.get("temperature") is None and not body.get("reasoning")
+    metadata = root_metadata(root_of(spans))
+    assert "temperature" not in metadata and "reasoningEffort" not in metadata
+
+
+def test_reasoning_effort_reaches_the_model_request(span_exporter, prompt_fetch, fake_openai, stub_docs, scores, monkeypatch):
+    from agent.prompts import LOCAL_PROMPT_CONFIG
+    from tests.conftest import make_text_prompt
+
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    prompt_fetch["result"] = make_text_prompt(config={**LOCAL_PROMPT_CONFIG, "reasoningEffort": "low"})
     decode_code(CODE, "Beginner")
     spans = export(span_exporter)
     assert [body.get("reasoning", {}).get("effort") for body in fake_openai.bodies] == ["low", "low"]
-    assert all("temperature" not in body or body["temperature"] is None for body in fake_openai.bodies)
+    assert all(body.get("temperature") is None for body in fake_openai.bodies)
+    assert root_metadata(root_of(spans))["reasoningEffort"] == "low"
+
+
+def test_env_model_override_sends_no_prompt_parameters(span_exporter, prompt_fetch, fake_openai, stub_docs, scores, monkeypatch):
+    from agent.prompts import LOCAL_PROMPT_CONFIG
+    from tests.conftest import make_text_prompt
+
+    monkeypatch.setenv("OPENAI_MODEL", "emergency-model")
+    prompt_fetch["result"] = make_text_prompt(
+        config={**LOCAL_PROMPT_CONFIG, "model": "reasoning-model", "reasoningEffort": "high", "temperature": 0.2}
+    )
+    decode_code(CODE, "Beginner")
+    spans = export(span_exporter)
+    for body in fake_openai.bodies:
+        assert body["model"] == "emergency-model"
+        assert body.get("temperature") is None and not body.get("reasoning")
     metadata = root_metadata(root_of(spans))
-    assert metadata["reasoningEffort"] == "low"
-    assert "temperature" not in metadata
+    assert (metadata["model"], metadata["modelSource"]) == ("emergency-model", "env")
 
 
-def test_default_request_has_no_reasoning_parameter(span_exporter, prompt_fetch, fake_openai, stub_docs, scores):
-    decode_code(CODE, "Beginner")  # prompt fetch fails -> local config
+@pytest.mark.parametrize("status", [400, 401, 500])
+def test_api_error_text_is_not_exported(span_exporter, prompt_fetch, fake_openai, stub_docs, scores, status):
+    """The API error body (which may echo request content) must not reach any span."""
+    fake_openai.error_status = status
+    with pytest.raises(Exception):
+        decode_code(CODE, "Beginner")
+    spans = export(span_exporter)
+    root = root_of(spans)
+    assert root_metadata(root)["outcome"] == "runtime_error"
+    assert_no_canary(spans)
+    assert_no_exception_events(spans)
+
+
+def test_raw_payload_passed_by_mistake_is_dropped(span_exporter, caplog):
+    with caplog.at_level(logging.WARNING, logger="agent.observability"):
+        with observability.observation("build_learning_plan", input={"rawCode": f"{CANARY}_code"}) as span:
+            span.update(output={"primaryTargetIds": [], "rawAnswer": f"{CANARY}_answer"})
+    spans = export(span_exporter)
+    assert_no_canary(spans)
+    assert "telemetry_payload_key_dropped name=build_learning_plan field=input key=rawCode" in caplog.text
+
+
+def test_unregistered_metadata_attribute_is_masked_at_export():
+    from types import SimpleNamespace
+
+    mask = observability._build_mask(capture_content=False)
+    span = SimpleNamespace(
+        instrumentation_scope_name="langfuse-sdk",
+        attributes={
+            "langfuse.observation.metadata.outcome": "\"success\"",
+            "langfuse.observation.metadata.rawCode": f"\"{CANARY}\"",
+            "langfuse.trace.metadata.anything": "x",
+        },
+    )
+    result = mask(params=SimpleNamespace(spans={"id": span}))
+    assert set(result.span_patches["id"].delete_attributes) == {
+        "langfuse.observation.metadata.rawCode",
+        "langfuse.trace.metadata.anything",
+    }
+
+
+def test_propagation_failure_does_not_break_decode(span_exporter, prompt_fetch, fake_openai, stub_docs, scores, monkeypatch):
+    import langfuse
+
+    class Broken:
+        def __enter__(self):
+            raise RuntimeError("propagation broke")
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(langfuse, "propagate_attributes", lambda **_: Broken())
+    execution = decode_code(CODE, "Beginner")
+    assert execution.result.what
     export(span_exporter)
-    assert all(not body.get("reasoning") for body in fake_openai.bodies)

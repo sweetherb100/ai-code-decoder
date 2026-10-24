@@ -27,11 +27,11 @@
 
 | 시나리오 | `outcome` | 확인할 trace 구조 | 기대 score |
 | --- | --- | --- | --- |
-| 중첩 호출 순서 | `success` | `lookup_documentation` 순서가 학습 계획 순서와 같음, generation 2개 | `tool_contract_passed`·`grounding_passed` true, `exact_resolution_ratio`·`citation_coverage` 기록 |
+| 중첩 호출 순서 | `success` | `lookup_documentation` 순서가 학습 계획 순서와 같음, generation 2개 | `tool_contract_passed`·`citation_integrity_passed` true, `exact_resolution_ratio`·`citation_coverage` 기록 |
 | 문자열 문법 | `success` | 문서 조회가 없으면 retriever 0개 | `exact_resolution_ratio`·`citation_coverage` 없음, `cited_source_count` 0 |
 | 표준 라이브러리 | `success` | retriever input에 `pathlib`/`Path.exists`, output `status=exact_match` | `exact_resolution_ratio` 1, `cited_source_count` = exact match 수 |
 | 외부 라이브러리 | `success` | retriever `status=unsupported`, **input에 `requests` 이름이 없음** | `exact_resolution_ratio` 없음 (품질 실패로 집계되지 않음) |
-| 확인 불가 인스턴스 | `success` | root metadata `unresolvedTargetCount` ≥ 1, 해당 대상은 문서 조회 안 됨 | 허위 출처 없음 → `grounding_passed` true |
+| 확인 불가 인스턴스 | `success` | root metadata `unresolvedTargetCount` ≥ 1, 해당 대상은 문서 조회 안 됨 | 허위 출처 없음 → `citation_integrity_passed` true |
 | 문법 오류 | `input_rejected` | root·`validate_input.analyze_code`가 WARNING, generation 0개, 비용 0 | 없음 (Tool 검증 전 종료) |
 
 ### 모든 trace 공통

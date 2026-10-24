@@ -11,6 +11,11 @@ class DecodeQualityError(ValueError):
         self.issue_codes = issue_codes
 
 
+def is_single_question_format(check: str) -> bool:
+    """Return whether `check` has exactly one question mark (format only, not semantics)."""
+    return check.count("?") + check.count("？") == 1
+
+
 def validate_decode_result(
     decode_result: DecodeResult, documentation: list[DocumentationEvidence]
 ) -> DecodeResult:
@@ -27,6 +32,8 @@ def validate_decode_result(
     ]
     if missing_fields:
         issues.append(("missing_field", f"필수 응답 항목 누락: {', '.join(missing_fields)}"))
+    if required_fields["check"] and not is_single_question_format(decode_result.check):
+        issues.append(("invalid_check_format", "확인 질문은 물음표가 하나인 질문 하나여야 합니다"))
 
     exact_evidence = {
         evidence.source_id: evidence

@@ -69,11 +69,17 @@ class FakeOpenAI:
     final_text: str = field(default_factory=decode_result_json)
     requests: list[str] = field(default_factory=list)
     bodies: list[dict[str, Any]] = field(default_factory=list)
+    error_status: int | None = None  # respond with an API error whose body has the canary
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request.url.path)
         body = json.loads(request.content or b"{}")
         self.bodies.append(body)
+        if self.error_status is not None:
+            return httpx.Response(
+                self.error_status,
+                json={"error": {"message": f"{CANARY}_api_error echoing input", "type": "invalid_request_error", "code": "x"}},
+            )
         has_tool_output = any(
             isinstance(item, dict) and item.get("type") == "function_call_output"
             for item in body.get("input", [])
