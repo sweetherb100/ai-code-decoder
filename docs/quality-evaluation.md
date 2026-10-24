@@ -11,6 +11,8 @@
 - 문서 조회는 학습 계획의 핵심 대상 최대 3개에만 수행한다.
 - 최종 출처는 `exact_match` 상태인 문서의 `source_id`, 제목, URL과 정확히 일치한다.
 - `page_only`, `unsupported`, `unavailable` 상태의 문서는 출처에 포함하지 않는다.
+- Example 아래에 문법 검사 통과 또는 실패 문구가 표시되고, 실패해도 응답은 막지 않는다.
+- Download로 받은 Markdown 파일에 생성 일시, 글자 수, 디코딩한 입력 코드, What/Why/Source/Example/Check가 모두 들어 있다.
 
 ## 시나리오
 

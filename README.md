@@ -10,11 +10,15 @@ OpenAI Agents SDK와 Streamlit으로 만든 Python 코드 이해 학습 도구�
 - 문서 조회 결과는 정확한 심볼 일치, 페이지 단위 일치, 미지원, 일시적 조회 실패 상태로 구분합니다.
 - 최종 답변은 실제 도구가 반환한 정확한 문서 근거만 출처로 표시하도록 검증합니다.
 - Python 내장 함수·타입과 표준 라이브러리는 Python 공식 문서를, 등록된 서드파티 패키지는 그 패키지의 공식 문서를 조회합니다. 서드파티 대상도 코드상 위치대로 핵심 개념에 선정되며, 등록되지 않은 패키지는 지원하지 않는다고 표시합니다. 등록 목록은 `agent/package_registry.py`에 있습니다 (requests, pandas, numpy, matplotlib, flask, django, fastapi, pydantic, streamlit, python-dotenv 등).
+- 같은 공식 문서 페이지는 앱이 실행되는 동안 한 번만 내려받아 재사용합니다.
+- 예시 코드는 실행하지 않고 AST로 문법만 검사해 통과/실패 여부를 함께 표시합니다.
 - 설명 수준을 Beginner 또는 Developer로 선택할 수 있습니다.
 - 주변 코드를 선택적으로 붙여 넣어 Why 설명에 맥락을 제공할 수 있습니다.
 - 매 실행마다 이해 확인 질문 하나를 생성합니다.
+- 입력창 아래에 코드와 주변 코드의 합계 글자 수를 한도와 함께 표시합니다.
+- 결과를 생성 일시, 글자 수, 입력 코드와 함께 Markdown 파일로 내려받을 수 있습니다.
 - Langfuse tracing은 기본 비활성화되어 있습니다. 켜면 실행 구조·모델 사용량·검증 결과를 기록하되, 기본 설정에서는 코드 원문을 보내지 않습니다.
-- 앱 자체는 코드를 데이터베이스나 파일에 저장하지 않습니다.
+- 앱 자체는 코드를 데이터베이스나 파일에 저장하지 않습니다. Markdown 파일은 사용자가 다운로드 버튼을 누를 때만 사용자 기기에 저장됩니다.
 
 코드와 주변 맥락은 응답 생성을 위해 OpenAI API로 전송됩니다. 공식 문서를 가져올 때에는 식별된 모듈과 심볼에 해당하는 Python 문서 페이지, 또는 등록된 서드파티 패키지의 공식 문서 색인과 페이지를 요청합니다. 등록되지 않은 패키지 이름은 외부로 요청하지 않습니다.
 
@@ -80,6 +84,16 @@ python -m pytest tests
 
 테스트는 OpenAI 응답을 HTTP 계층에서 흉내 내고 Langfuse export를 메모리로 받아, 실제로 내보내질 span에 원문이 없는지와 trace 구조를 검증합니다.
 
+### 린트·포맷
+
+```bash
+pip install ruff==0.17.2
+ruff format .
+ruff check .
+```
+
+설정은 `pyproject.toml`, 코드 작성 규칙은 [`docs/code-convention.md`](docs/code-convention.md)에 있습니다.
+
 ## 프로젝트 구조
 
 ```text
@@ -89,7 +103,8 @@ agent/
   pipeline.py       분석·계획·문서 조회 순서 강제
   documentation.py  공식 문서 조회 (Python 문서, 등록된 서드파티 문서)
   package_registry.py  공식 문서를 조회할 서드파티 패키지 목록
-  quality.py        최종 응답의 문서 근거 검증
+  quality.py        최종 응답의 문서 근거 검증, 예시 코드 문법 검사
+  export.py         디코드 결과 Markdown 변환
   tools.py          Agents SDK 함수 도구
   prompts.py        로컬 프롬프트·config와 Langfuse 프롬프트 조회/대체
   models.py         분석 및 구조화 응답 모델
