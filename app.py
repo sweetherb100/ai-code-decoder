@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from datetime import datetime
 import os
 import uuid
 
@@ -14,6 +15,7 @@ load_dotenv()
 
 from agent.analyzer import CodeAnalysisError, MAX_CODE_CHARACTERS  # noqa: E402
 from agent.decoder import DecodeExecution, decode_code  # noqa: E402
+from agent.export import to_markdown  # noqa: E402
 from agent.observability import active_settings, record_user_feedback  # noqa: E402
 from agent.quality import DecodeQualityError, example_syntax_error  # noqa: E402
 
@@ -182,6 +184,8 @@ if decode_clicked:
             st.session_state["decode_result"] = decoded
             st.session_state["code_analysis"] = analysis
             st.session_state["decode_execution"] = execution
+            # Keep the decoded input so later edits in the text areas do not leak into exports.
+            st.session_state["decode_input"] = {"code": code, "context": context}
         except CodeAnalysisError as exc:
             st.error(str(exc))
             st.session_state.pop("decode_result", None)
@@ -199,10 +203,29 @@ if decode_clicked:
             st.session_state.pop("decode_execution", None)
 
 with right:
-    st.subheader("DECODED")
     decoded = st.session_state.get("decode_result")
     analysis = st.session_state.get("code_analysis")
     execution = st.session_state.get("decode_execution")
+    title_column, download_column = st.columns([3, 1], vertical_alignment="bottom")
+    with title_column:
+        st.subheader("DECODED")
+    if decoded:
+        decode_input = st.session_state.get("decode_input", {"code": "", "context": ""})
+        created_at = datetime.now()
+        with download_column:
+            st.download_button(
+                "Download",
+                data=to_markdown(
+                    decoded,
+                    decode_input["code"],
+                    decode_input["context"],
+                    created_at,
+                    MAX_CODE_CHARACTERS,
+                ),
+                file_name=f"decoded-{created_at:%Y%m%d-%H%M%S}.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
     if not decoded:
         st.info("코드를 입력하고 Decode Code를 누르면 결과가 여기에 표시됩니다.")
     else:
