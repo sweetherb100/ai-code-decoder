@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, replace
-from typing import Any, Literal, Optional
+from typing import Any
 
 from agents import Agent, ModelSettings, RunConfig, Runner
-from openai.types.shared import Reasoning
 from agents.exceptions import MaxTurnsExceeded, ModelBehaviorError
+from openai.types.shared import Reasoning
 
 from agent.analyzer import CodeAnalysisError, analyze_code
 from agent.models import (
+    AudienceLevel,
     CodeAnalysis,
     DecodeResult,
     DocumentationEvidence,
@@ -34,7 +35,6 @@ from agent.quality import DecodeQualityError, is_single_question_format, validat
 from agent.run_context import DecodeRunContext, ToolContractError
 from agent.tools import decode_code_pipeline_tool
 
-
 MAX_TURNS = 2
 
 
@@ -54,6 +54,7 @@ OUTCOME_BY_ERROR = {
 
 
 def outcome_for(error: BaseException) -> str:
+    """Return the trace outcome code registered for an error type."""
     for error_type, (_, outcome) in OUTCOME_BY_ERROR.items():
         if isinstance(error, error_type):
             return outcome
@@ -69,17 +70,17 @@ class DecodeExecution:
     learning_plan: LearningPlan
     documentation: list[DocumentationEvidence]
     tool_call_audit: list[str]
-    trace_id: Optional[str] = None
-    root_observation_id: Optional[str] = None
-    trace_url: Optional[str] = None
+    trace_id: str | None = None
+    root_observation_id: str | None = None
+    trace_url: str | None = None
 
 
 def decode_code(
     code: str,
-    level: Literal["Beginner", "Developer"],
+    level: AudienceLevel,
     context: str = "",
     *,
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
 ) -> DecodeExecution:
     """Generate a decode response through the Agents SDK function-tool loop."""
     init_observability()
@@ -117,7 +118,7 @@ def decode_code(
 
 def _decode(
     code: str,
-    level: Literal["Beginner", "Developer"],
+    level: AudienceLevel,
     context: str,
     root: Any,
     metadata: dict[str, Any],

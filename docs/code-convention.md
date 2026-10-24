@@ -109,7 +109,7 @@ from agent.observability_fields import APP_TAG, TRACE_NAME
 
 ```python
 # Bad
-from .observability_fields import *   # relative path, wildcard
+from .observability_fields import *  # relative path, wildcard
 ```
 
 - 그룹 내 정렬은 `ruff check --fix`(`I`)에 맡긴다.
@@ -138,7 +138,7 @@ is_public = evidence.status in PUBLIC_DOC_STATUSES
 targets_by_id = {target.target_id: target for target in analysis.learning_targets}
 
 # Bad
-public = evidence.status in PUBLIC_DOC_STATUSES   # unclear that this is a boolean
+public = evidence.status in PUBLIC_DOC_STATUSES  # unclear that this is a boolean
 d = {t.target_id: t for t in analysis.learning_targets}
 ```
 
@@ -231,6 +231,7 @@ def _sample_rate(raw: str | None) -> tuple[float, bool]:
         return 1.0, True
     return value, False
 
+
 # Bad
 def _sample_rate(raw):
     if raw:
@@ -265,6 +266,7 @@ def _sample_rate(raw):
 class CodeAnalysisError(ValueError):
     """Raised when Python source cannot be parsed or is too large."""
 
+
 try:
     code_tree = ast.parse(code)
 except SyntaxError as exc:
@@ -288,7 +290,7 @@ except SyntaxError as exc:
 try:
     evidence = lookup_documentation(module, symbol)
 except Exception:
-    pass   # failure disappears, and the citation just goes missing
+    pass  # failure disappears, and the citation just goes missing
 ```
 
 - 예외를 조용히 삼키지 않는다. 최소한 결과 코드, 로그 이벤트, 사용자 메시지 중 하나로 남긴다.
@@ -305,8 +307,8 @@ logger = logging.getLogger(__name__)
 log_event("telemetry_init_failed", error=type(exc).__name__)
 
 # Bad
-print(f"init failed: {exc}")                      # print, raw message
-logger.warning("lookup failed: %s", str(exc))      # str(exc) may echo user code or API responses
+print(f"init failed: {exc}")  # print, raw message
+logger.warning("lookup failed: %s", str(exc))  # str(exc) may echo user code or API responses
 ```
 
 - `print`는 `scripts/`의 CLI 출력에만 허용한다 (ruff `T20`).
@@ -408,30 +410,3 @@ def test_decode_2(...):
 | 로그·trace에 `str(exc)`, 사용자 코드, 모델 응답 원문 | §8 | 리뷰 |
 | 도구가 반환하지 않은 출처 ID·URL 생성 | 출처 무결성 (SKILL.md invariant) | `quality.py` 검증 |
 | 주석 처리한 코드, TODO, 디버그 출력 | §9 | 리뷰 |
-
----
-
-## 부록 A. 현재 위반 사항 (2026-10-25 기준)
-
-이 문서를 도입한 시점에 `ruff check .`에서 95건, `ruff format --check .`에서 15개 파일이 걸렸다. 수정은 기능 변경과 분리해 별도 커밋으로 한다. 이 부록은 정리가 끝나면 삭제한다.
-
-| 항목 | 규칙 | 위치 | 자동 수정 |
-|---|---|---|---|
-| `Optional[X]` 사용 (35건) | §4, `UP045` | `observability.py` 15, `prompts.py` 11, `decoder.py` 4, `models.py` 4, `quality.py` 1 | O |
-| import 정렬 (13건) | §2, `I001` | `agent/` 대부분, `app.py`, `tests/` | O |
-| `typing.Callable` | §4, `UP035` | `tests/conftest.py` | O |
-| 자리표시자 없는 f-string | `F541` | `agent/prompts.py:18` | O |
-| 안 쓰는 import | `F401` | `tests/test_decode_tracing.py:13` | O |
-| 한 줄 100자 초과 (40건) | `E501` | 대부분 `tests/test_decode_tracing.py`의 fixture 인자 목록 | 대부분 `ruff format`으로 해결 |
-| 중첩 `with` (3건) | `SIM117` | `observability.py:363`, `tests/test_decode_tracing.py:403`, `tests/test_observability.py:91` | 일부 |
-| `pytest.raises(Exception)` | §11, `B017` | `tests/test_decode_tracing.py:393` | X |
-| `AudienceLevel` 중복 정의 | §4 | `pipeline.py`, `run_context.py`에 별칭, `decoder.py`, `planner.py`, `models.py`에 `Literal` 직접 사용 | X |
-| 같은 `session_state.pop` 목록 반복 | §10 | `app.py` decode 예외 처리 | X |
-| 이유 주석 없는 `except Exception` | §7 | `app.py` `_api_key()` | X |
-| 공개 함수 docstring 누락 | §9 | `decoder.outcome_for` | X |
-
-정리 순서 제안:
-
-1. `ruff format .`: 모양만 바뀌므로 단독 커밋
-2. `ruff check . --fix`: 자동 수정 커밋
-3. 나머지 수동 항목

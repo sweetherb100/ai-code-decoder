@@ -1,7 +1,7 @@
 """Convert a verified decode result into downloadable documents."""
 
-from datetime import datetime
 import re
+from datetime import datetime
 
 from agent.models import DecodeResult
 

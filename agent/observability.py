@@ -15,7 +15,7 @@ import threading
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from agents import set_tracing_disabled
 
@@ -30,7 +30,6 @@ from agent.observability_fields import (
     is_allowed_attribute,
 )
 
-
 logger = logging.getLogger(__name__)
 
 Level = Literal["DEBUG", "DEFAULT", "WARNING", "ERROR"]
@@ -44,9 +43,11 @@ _EXPORT_LOGGERS = ("opentelemetry.exporter.otlp.proto.http.trace_exporter", "lan
 
 @dataclass(frozen=True)
 class ObservabilitySettings:
+    """Tracing settings resolved once from the environment."""
+
     enabled: bool
     environment: str
-    release: Optional[str]
+    release: str | None
     sample_rate: float
     capture_content: bool
     show_trace_link: bool
@@ -80,7 +81,7 @@ def load_settings(env: Mapping[str, str] = os.environ) -> ObservabilitySettings:
     )
 
 
-def _sample_rate(raw: Optional[str]) -> tuple[float, bool]:
+def _sample_rate(raw: str | None) -> tuple[float, bool]:
     """Parse a 0.0-1.0 sample rate; invalid values fall back to full collection."""
     if not raw:
         return 1.0, False
@@ -105,7 +106,7 @@ class _State:
     client: Any = None
 
 
-_state: Optional[_State] = None
+_state: _State | None = None
 _init_lock = threading.Lock()
 _reported_dropped_keys: set[tuple[str, str]] = set()
 
@@ -182,7 +183,7 @@ def _create_client(settings: ObservabilitySettings, span_exporter: Any) -> Any:
 def _build_mask(capture_content: bool):
     from langfuse.types import MaskOtelSpansResult, OtelSpanPatch
 
-    def mask_otel_spans(*, params: Any) -> Optional[Any]:
+    def mask_otel_spans(*, params: Any) -> Any | None:
         patches = {}
         for identifier, span in params.spans.items():
             dropped = tuple(
@@ -234,11 +235,11 @@ class Observation:
         self._name = name
 
     @property
-    def trace_id(self) -> Optional[str]:
+    def trace_id(self) -> str | None:
         return getattr(self._span, "trace_id", None)
 
     @property
-    def id(self) -> Optional[str]:
+    def id(self) -> str | None:
         return getattr(self._span, "id", None)
 
     def update(self, **fields: Any) -> None:
@@ -277,7 +278,7 @@ def _score_value(name: str, value: bool | float | str) -> tuple[str, float | str
     return data_type, str(value)
 
 
-def record_user_feedback(trace_id: Optional[str], observation_id: Optional[str], positive: bool) -> None:
+def record_user_feedback(trace_id: str | None, observation_id: str | None, positive: bool) -> None:
     """Record 👍/👎 on a decode run. Re-clicking updates the same score."""
     if not trace_id or _state is None or _state.client is None:
         return
@@ -297,7 +298,7 @@ def record_user_feedback(trace_id: Optional[str], observation_id: Optional[str],
 
 
 def _classify(
-    exc: BaseException, expected: ExpectedErrors, fallback_code: Optional[str]
+    exc: BaseException, expected: ExpectedErrors, fallback_code: str | None
 ) -> tuple[Level, str]:
     for error_type, (level, code) in expected.items():
         if isinstance(exc, error_type):
@@ -314,7 +315,7 @@ def observation(
     as_type: ObservationType = "span",
     input: Any = None,
     expected: ExpectedErrors | None = None,
-    fallback_code: Optional[str] = None,
+    fallback_code: str | None = None,
 ) -> Iterator[Observation]:
     """Open a child observation and classify any exception that leaves it.
 
@@ -333,7 +334,7 @@ def observation(
         except Exception as exc:
             log_event("telemetry_observation_failed", name=name, error=type(exc).__name__)
             manager = None
-    error: Optional[BaseException] = None
+    error: BaseException | None = None
     try:
         yield observed
     except Exception as exc:
@@ -353,25 +354,27 @@ def observation(
 @contextmanager
 def decode_trace(
     *,
-    session_id: Optional[str],
+    session_id: str | None,
     level: str,
     input: Any,
     expected: ExpectedErrors,
 ) -> Iterator[Observation]:
     """Open the root observation for one decode run and propagate trace attributes."""
     init_observability()
-    with observation(
-        ROOT_OBSERVATION_NAME,
-        as_type="chain",
-        input=input,
-        expected=expected,
-        fallback_code="runtime_error",
-    ) as root:
-        with _propagate(session_id=session_id, tags=[APP_TAG, f"level:{level.lower()}"]):
-            yield root
+    with (
+        observation(
+            ROOT_OBSERVATION_NAME,
+            as_type="chain",
+            input=input,
+            expected=expected,
+            fallback_code="runtime_error",
+        ) as root,
+        _propagate(session_id=session_id, tags=[APP_TAG, f"level:{level.lower()}"]),
+    ):
+        yield root
 
 
-def _propagate(*, session_id: Optional[str], tags: list[str]):
+def _propagate(*, session_id: str | None, tags: list[str]):
     return _safe_propagation(session_id=session_id, tags=tags, trace_name=TRACE_NAME)
 
 
@@ -408,6 +411,7 @@ def prompt_client() -> Any:
 
 
 def prompt_label() -> str:
+    """Return the Langfuse prompt label to fetch."""
     return _state.settings.prompt_label if _state is not None else "production"
 
 
@@ -451,10 +455,11 @@ def root_metadata(values: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def capture_content() -> bool:
+    """Return whether raw model inputs and outputs may be traced."""
     return _state is not None and _state.settings.capture_content
 
 
-def trace_url(trace_id: Optional[str]) -> Optional[str]:
+def trace_url(trace_id: str | None) -> str | None:
     """Return a project-scoped Langfuse trace URL when link display is enabled."""
     if not trace_id or _state is None or _state.client is None:
         return None
@@ -468,6 +473,7 @@ def trace_url(trace_id: Optional[str]) -> Optional[str]:
 
 
 def flush() -> None:
+    """Send buffered spans to Langfuse."""
     if _state is not None and _state.client is not None:
         try:
             _state.client.flush()

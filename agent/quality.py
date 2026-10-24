@@ -1,7 +1,6 @@
 """Validate that generated decode responses are grounded in tool evidence."""
 
 import ast
-from typing import Optional
 
 from agent.models import DecodeResult, DocumentationEvidence
 
@@ -19,7 +18,7 @@ def is_single_question_format(check: str) -> bool:
     return check.count("?") + check.count("？") == 1
 
 
-def example_syntax_error(example: str) -> Optional[str]:
+def example_syntax_error(example: str) -> str | None:
     """Return a syntax error message for `example`, or None when it parses.
 
     The example is parsed with the AST only and never executed.

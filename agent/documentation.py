@@ -224,7 +224,9 @@ def _is_standard_library(module: str) -> bool:
         under_stdlib = os.path.commonpath([stdlib_path, origin_path]) == stdlib_path
     except ValueError:
         return False
-    return under_stdlib and "site-packages" not in origin_path and "dist-packages" not in origin_path
+    return (
+        under_stdlib and "site-packages" not in origin_path and "dist-packages" not in origin_path
+    )
 
 
 def _source_id(url: str) -> str:
