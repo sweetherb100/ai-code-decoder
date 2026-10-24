@@ -96,6 +96,11 @@ def _is_standard_library(module: str) -> bool:
     return under_stdlib and "site-packages" not in origin_path and "dist-packages" not in origin_path
 
 
+def is_documentable(module: str, symbol: str) -> bool:
+    """Return whether a target maps to a supported official Python docs page."""
+    return _official_doc_url(module, symbol) is not None
+
+
 def _source_id(url: str) -> str:
     digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:12]
     return f"source-{digest}"
