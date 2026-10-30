@@ -98,8 +98,57 @@ class SourceReference(BaseModel):
     url: str
 
 
+class ConceptExplanation(BaseModel):
+    """One planned learning target explained next to the code it came from."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_id: str = Field(description="target_id of a learning_plan primary target")
+    role: str = Field(
+        description="[What · Fact] What this API or syntax does, grounded in code and docs"
+    )
+    input: str = Field(description="What the code passes in, as written in the source")
+    output: str = Field(description="What comes back and where the code uses it")
+    connection: str = Field(
+        description=(
+            "[Why · Assumption] How this target connects to surrounding lines and why "
+            "it may be needed here; inferred intent must be qualified as a possibility"
+        )
+    )
+    related_lines: list[int] = Field(
+        description="One-based lines, in the same input as the target, that feed or use it"
+    )
+    source_id: Optional[str] = Field(
+        description="source_id of this target's exact_match documentation, else null"
+    )
+    example: str = Field(description="A minimal Python example focused on this target only")
+
+
+class QuizOption(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(description="Short answer choice")
+    correct: bool = Field(description="True for exactly one option")
+    feedback: str = Field(
+        description="Why this choice is right or wrong, pointing back to the explanation"
+    )
+
+
+class UnderstandingQuiz(BaseModel):
+    """A one-depth multiple-choice question that predicts behavior or role."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question: str
+    options: list[QuizOption] = Field(description="Two to four choices, exactly one correct")
+
+
 class DecodeResult(BaseModel):
-    """The stable What / Why / Source / Example / Check response contract."""
+    """The stable What / Why / Source / Example / Check response contract.
+
+    `concepts` and `quiz` extend it for the focus-and-check learning screens; the
+    original five fields keep their meaning.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -108,3 +157,7 @@ class DecodeResult(BaseModel):
     source: list[SourceReference]
     example: str
     check: str = Field(description="One question that checks the user's understanding")
+    concepts: list[ConceptExplanation] = Field(
+        description="One explanation per learning_plan primary target, in explanation_order"
+    )
+    quiz: UnderstandingQuiz

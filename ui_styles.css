@@ -1,0 +1,206 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+.stApp { background: #f4f6f9; color: #141a26; }
+.stApp, .stApp p, .stApp label, .stApp button, .stApp textarea, .stApp input { font-family: 'IBM Plex Sans KR', system-ui, sans-serif; }
+.block-container { max-width: 1280px; padding-top: 1.5rem; padding-bottom: 3rem; }
+[data-testid="stHeader"] { display: none; }
+h1 { font-size: 1.45rem !important; line-height: 1.2 !important; letter-spacing: -.04em; padding: 0 !important; margin: 0 !important; }
+h3 { font-size: 1.12rem !important; line-height: 1.5 !important; letter-spacing: -.02em; }
+h4 { font-size: 1.02rem !important; padding-bottom: 0 !important; }
+[data-testid="stVerticalBlock"] { gap: 1rem; }
+[data-testid="stExpander"] { background: white; border-radius: 10px; }
+[data-testid="stButton"] button[kind="primary"] { background: #2f5bd3; border-color: #2f5bd3; }
+[data-testid="stButton"] button:focus-visible { outline: 3px solid #c98a1b; outline-offset: 3px; }
+
+/* Header: brand + 1 발견 · 2 분석 · 3 검증 */
+.app-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding: 10px 20px; background: #ffffff; border: 1px solid #d5dce7; border-radius: 12px; margin-bottom: 20px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 2px solid #2f5bd3; border-radius: 8px; color: #2f5bd3; font: 600 11px 'JetBrains Mono', monospace; }
+.brand strong { display: block; font-size: 17px; }
+.privacy { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #5b6577; }
+.stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.step-line { width: 20px; height: 1px; background: #c9d1de; }
+.step { padding: 6px 12px; border-radius: 999px; background: #edf0f5; color: #5b6577; font-size: 13px; }
+.step.done { background: #e6ecfa; color: #1f3f9e; }
+.step.current { background: #2f5bd3; color: #ffffff; font-weight: 600; }
+
+/* Code views */
+.source-code { overflow: auto; height: 234px; font: 13px/1.9 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; background: white; border: 1px solid #d5dce7; border-radius: 10px; padding: 12px 0; margin: 0; }
+.source-code.focus-code { height: auto; max-height: 560px; border: 0; border-radius: 0; font-size: 14px; line-height: 26px; padding: 14px 0; }
+.code-line .marker { display: inline-block; width: 20px; height: 20px; margin: 0 6px 0 2px; border-radius: 50%; font: 600 11px/20px 'JetBrains Mono', monospace; text-align: center; vertical-align: middle; color: #3a4456; }
+.code-line .marker:not(:empty) { background: #edf0f5; }
+.code-line .marker.on { background: #2f5bd3; color: #ffffff; }
+.code-line { display: block; white-space: pre; min-height: 25px; padding: 0 14px 0 8px; width: max-content; min-width: 100%; box-sizing: border-box; }
+.code-line.selected { background: #e6ecfa; border-left: 3px solid #2f5bd3; padding-left: 5px; }
+.code-line.related { background: #f7f9fc; border-left: 3px solid #8a94a6; padding-left: 5px; }
+.line-number { display: inline-block; width: 32px; color: #6b7385; user-select: none; }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12px; color: #3a4456; }
+.legend .key { display: inline-block; width: 12px; height: 12px; margin-right: -8px; }
+.legend .key.selected { background: #e6ecfa; box-shadow: inset 3px 0 0 #2f5bd3; }
+.legend .key.related { background: #f7f9fc; box-shadow: inset 3px 0 0 #8a94a6; border: 1px solid #e3e8ef; }
+
+/* Fact / Assumption / Check labels */
+.badge { display: inline-block; font: 600 12px/1 'JetBrains Mono', ui-monospace, monospace; padding: 5px 8px; border-radius: 4px; margin-top: 4px; }
+.badge.fact { color: #1b6b44; background: #e2f2e9; border: 1px solid #a9d6bc; }
+.badge.assumption { color: #8a5a0b; background: #fbf1dc; border: 1px dashed #d9a84e; }
+.badge.check { color: #1f3f9e; background: #e6ecfa; border: 1px solid #c3d2f4; }
+.st-key-decode_panel { background: white; border-color: #2f5bd3 !important; border-width: 2px !important; }
+.st-key-quiz_panel, .st-key-own_words_panel, .st-key-overview_panel { background: white; }
+
+[data-testid="stCaptionContainer"] { color: #5b6577; font-size: 12px; }
+.st-key-code_input textarea, .st-key-context_input textarea { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+[data-testid="stGraphVizChart"] { background: #f8fafc; border-radius: 10px; }
+@media (max-width: 700px) {
+  [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+  [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { min-width: min(100%, 280px); flex: 1 1 100%; }
+  .block-container { padding: 1rem; }
+}
+
+/* Screen layout (01 입력 · 02 집중 · 03 Decode · 04 점검) */
+.screen-title h2 { font-size: 1.6rem !important; font-weight: 700; letter-spacing: -.02em; padding: 4px 0 2px !important; margin: 0 !important; }
+.screen-title h2 code { font-size: 1.3rem; background: transparent; color: #141a26; }
+.screen-sub { margin: 0 0 6px; color: #5b6577; font-size: 15px; }
+.summary-line { font-size: 1.05rem; font-weight: 600; padding: 2px 0 4px; }
+.card-head, .code-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: #5b6577; }
+.card-head strong, .code-card-head strong { font: 500 14px 'JetBrains Mono', monospace; color: #141a26; }
+.code-card { background: #ffffff; border: 1px solid #d5dce7; border-radius: 12px; overflow: hidden; }
+.code-card-head { padding: 10px 16px; border-bottom: 1px solid #e3e8ef; background: #f8fafc; }
+.st-key-editor_card, .st-key-context_card, .st-key-progress_panel, .st-key-decode_panel { background: #ffffff; }
+.st-key-editor_card textarea { font: 14px/26px 'JetBrains Mono', ui-monospace, monospace !important; background: #ffffff; }
+.scope-box { background: #f8fafc; border: 1px solid #e3e8ef; border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+.scope-box p { margin: 4px 0 0; color: #3a4456; line-height: 1.6; }
+.analysis-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; background: #ffffff; border: 1px solid #d5dce7; border-radius: 10px; padding: 10px 14px; }
+.analysis-strip .badge { margin-top: 0; }
+.analysis-strip span:last-child { color: #5b6577; }
+.line-chip { display: inline-block; font: 600 12px 'JetBrains Mono', monospace; color: #ffffff; background: #2f5bd3; border-radius: 4px; padding: 3px 8px; }
+.legend-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; color: #3a4456; }
+.legend-inline .badge { margin-top: 0; }
+.st-key-why_box { background: #fffbf2; border: 1px dashed #d9a84e !important; }
+.st-key-io_input, .st-key-io_output { background: #f8fafc; }
+.quiz-question { font-size: 1.2rem; font-weight: 600; line-height: 1.55; margin: 6px 0 4px; }
+
+/* Code and explanation are physically linked: a short connector into the panel. */
+@media (min-width: 701px) {
+  .st-key-decode_panel { position: relative; overflow: visible !important; }
+  .st-key-decode_panel::before { content: ''; position: absolute; left: -34px; top: 120px; width: 32px; height: 2px; background: #2f5bd3; }
+  .st-key-decode_panel::after { content: ''; position: absolute; left: -38px; top: 116px; width: 10px; height: 10px; border-radius: 50%; background: #2f5bd3; }
+}
+
+/* Radio options drawn as selectable cards (Streamlit: radiogroup > div[data-selected] > label). */
+.st-key-concept_cards [role="radiogroup"],
+.st-key-quiz_panel [role="radiogroup"] { gap: 12px; counter-reset: concept; }
+.st-key-concept_cards [role="radiogroup"] { display: flex; flex-direction: column; }
+.st-key-quiz_panel [role="radiogroup"] { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.st-key-concept_cards [role="radiogroup"] > div,
+.st-key-quiz_panel [role="radiogroup"] > div { counter-increment: concept; background: #ffffff; border: 1px solid #d5dce7; border-radius: 12px; padding: 16px 18px; margin: 0; width: 100%; box-sizing: border-box; }
+.st-key-concept_cards [role="radiogroup"] > div[data-selected="true"],
+.st-key-quiz_panel [role="radiogroup"] > div[data-selected="true"] { border: 2px solid #2f5bd3; padding: 15px 17px; box-shadow: 0 4px 16px rgba(47, 91, 211, .12); }
+.st-key-concept_cards [role="radiogroup"] label,
+.st-key-quiz_panel [role="radiogroup"] label { width: 100%; align-items: flex-start; }
+/* Card title row: letter badge · mono expression · line · 추천 pill. */
+.st-key-concept_cards label [data-testid="stMarkdownContainer"] { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.st-key-concept_cards label [data-testid="stMarkdownContainer"] p { margin: 0; font-size: 12px; color: #5b6577; }
+.st-key-concept_cards label [data-testid="stMarkdownContainer"] code { font: 600 15px 'JetBrains Mono', monospace; color: #141a26; background: transparent; padding: 0; margin-right: 6px; }
+.st-key-concept_cards label [data-testid="stMarkdownContainer"]::before { content: counter(concept, upper-alpha); display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: #edf0f5; color: #3a4456; font: 600 11px 'JetBrains Mono', monospace; }
+.st-key-concept_cards [role="radiogroup"] > div[data-selected="true"] label [data-testid="stMarkdownContainer"]::before { background: #2f5bd3; color: #ffffff; }
+.st-key-concept_cards [role="radiogroup"] > div:first-child label [data-testid="stMarkdownContainer"]::after { content: '추천'; font-size: 12px; font-weight: 600; color: #1f3f9e; background: #e6ecfa; border-radius: 999px; padding: 2px 8px; }
+.st-key-concept_cards [data-testid="stRadioCaption"] { margin-top: 6px; }
+.st-key-concept_cards [data-testid="stRadioCaption"] p { font-size: 15px !important; line-height: 1.55; color: #3a4456 !important; }
+.st-key-quiz_panel [role="radiogroup"] > div { min-height: 64px; display: flex; align-items: center; }
+.st-key-quiz_panel [role="radiogroup"] label p { font-size: 18px; font-weight: 600; color: #141a26; }
+
+/* Concept markers column in the focus code view. */
+.code-line .markers { display: inline-flex; gap: 2px; width: 46px; margin-right: 2px; vertical-align: middle; }
+.code-line .markers .marker { margin: 0; }
+.code-line .markers .marker { background: #edf0f5; }
+.code-line .markers .marker.on { background: #2f5bd3; color: #ffffff; }
+
+/* Tighter top rhythm on result screens: back link sits right above the title. */
+.st-key-back_to_input, .st-key-back_to_focus, .st-key-back_to_decode { margin-bottom: -14px; }
+.st-key-back_to_input button, .st-key-back_to_focus button, .st-key-back_to_decode button { min-height: 28px; padding: 0; font-size: 14px; }
+.app-header { border-bottom-color: #e3e8ef; }
+
+.concept-progress { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.concept-progress li { display: flex; align-items: center; gap: 10px; }
+.concept-progress .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #c9d1de; box-sizing: border-box; flex-shrink: 0; }
+.concept-progress li.on .dot { background: #2f5bd3; border-color: #2f5bd3; }
+.concept-progress code { background: transparent; color: #141a26; }
+.concept-progress em { font-style: normal; font-size: 12px; color: #1f3f9e; }
+[data-testid="stButton"] button[kind="tertiary"] { color: #2f5bd3; padding-left: 0; }
+
+/* Streamlit pulls markdown blocks up by 1rem to hide paragraph margins; HTML blocks
+   have none, so the next element would overlap them. */
+[data-testid="stMarkdownContainer"]:has(> div, > nav, > ul, > span.badge, > span.line-chip),
+.stMarkdown:has(.app-header, .screen-title, .card-head, .scope-box, .code-card, .analysis-strip, .summary-line,
+  .legend, .legend-inline, .concept-progress, .badge, .line-chip, .quiz-question) [data-testid="stMarkdownContainer"] {
+  margin-bottom: 0 !important;
+}
+
+/* Breathing room: section rhythm 24px, inside cards 16–20px. */
+.screen-title { margin-bottom: 12px; }
+.screen-title h2 { padding-bottom: 6px !important; }
+.screen-sub { margin-bottom: 0; }
+.card-head { padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid #e3e8ef; }
+.st-key-editor_card, .st-key-context_card, .st-key-decode_panel, .st-key-quiz_panel,
+.st-key-own_words_panel, .st-key-progress_panel, .st-key-overview_panel { padding: 22px 24px !important; gap: 1.1rem !important; }
+.st-key-why_box, .st-key-io_input, .st-key-io_output { padding: 14px 16px !important; }
+.scope-box { margin: 4px 0; }
+.summary-line { margin: 4px 0 8px; }
+.analysis-strip { margin-bottom: 8px; }
+.code-card { margin-bottom: 4px; }
+.legend { margin-top: 10px; }
+[data-testid="stHorizontalBlock"] { gap: 2rem; }
+[data-testid="stExpander"] { margin-top: 8px; }
+.st-key-own_words textarea { font-family: 'IBM Plex Sans KR', system-ui, sans-serif !important; }
+
+/* --- 01 코드 입력: prototype match ------------------------------------------ */
+/* Header is a full-width white bar, not a floating card. */
+.app-header { margin: -40px calc(50% - 50vw) 28px; padding: 14px calc(50vw - 50%); border: 0; border-bottom: 1px solid #d5dce7; border-radius: 0; }
+.screen-title h2 { font-size: 28px !important; line-height: 1.3 !important; }
+.screen-sub { font-size: 16px; }
+
+/* Cards: white, 1px #d5dce7, radius 12. */
+.st-key-editor_card, .st-key-context_card { background: #ffffff; border: 1px solid #d5dce7; border-radius: 12px; }
+.st-key-editor_card { padding: 0 !important; gap: 0 !important; overflow: hidden; }
+.st-key-editor_head { background: #f8fafc; border-bottom: 1px solid #e3e8ef; padding: 10px 16px !important; }
+.st-key-editor_head [data-testid="stElementContainer"]:first-child { flex: 1 1 auto; }
+.file-meta { display: flex; align-items: center; gap: 10px; }
+.file-meta strong { font: 500 14px 'JetBrains Mono', monospace; }
+.file-meta .chip { font-size: 12px; color: #5b6577; background: #edf0f5; border-radius: 4px; padding: 2px 8px; }
+.st-key-editor_head button { min-height: 36px; padding: 0 12px; font-size: 13px; color: #3a4456; background: #ffffff; border: 1px solid #d5dce7; border-radius: 6px; }
+.st-key-editor_card [data-testid="stTextArea"] [data-baseweb="textarea"] { border: 0 !important; border-radius: 0 !important; background: #ffffff !important; }
+.st-key-editor_card textarea { padding: 16px 20px !important; font: 14px/26px 'JetBrains Mono', ui-monospace, monospace !important; color: #141a26 !important; background: #ffffff !important; }
+
+.aside-title { font-size: 18px; font-weight: 700; }
+.st-key-context_card label p { font-size: 14px; font-weight: 600; color: #141a26; }
+.st-key-context_card [data-baseweb="textarea"],
+.st-key-context_card .react-aria-ComboBox > [role="group"],
+.st-key-context_card [data-baseweb="select"] > div { background: #ffffff !important; border: 1px solid #c9d1de !important; border-radius: 8px !important; }
+.st-key-context_card textarea { background: #ffffff !important; }
+.st-key-decode button { min-height: 48px; border-radius: 8px; font-size: 16px; font-weight: 600; }
+.st-key-preview button { min-height: 40px; color: #2f5bd3; font-size: 14px; }
+
+/* Option cards, matched by structure (any wrapper Streamlit adds) rather than by direct child. */
+.st-key-concept_cards div:has(> label[data-testid="stRadioOption"]),
+.st-key-quiz_panel div:has(> label[data-testid="stRadioOption"]) { background: #ffffff; border: 1px solid #d5dce7; border-radius: 12px; padding: 16px 18px; margin: 0; box-sizing: border-box; }
+.st-key-concept_cards div:has(> label[data-testid="stRadioOption"][data-selected="true"]),
+.st-key-quiz_panel div:has(> label[data-testid="stRadioOption"][data-selected="true"]) { border: 2px solid #2f5bd3; padding: 15px 17px; box-shadow: 0 4px 16px rgba(47, 91, 211, .12); }
+.st-key-concept_cards div:has(> label[data-testid="stRadioOption"]) { counter-increment: concept; }
+.st-key-concept_cards div:has(> label[data-testid="stRadioOption"][data-selected="true"]) label [data-testid="stMarkdownContainer"]::before { background: #2f5bd3; color: #ffffff; }
+
+/* 04 퀴즈: 프로토타입처럼 원형 라디오 없이 가운데 정렬된 큰 답 카드. */
+.st-key-quiz_panel div:has(> label[data-testid="stRadioOption"]) { display: flex; align-items: center; justify-content: center; min-height: 64px; text-align: center; cursor: pointer; }
+.st-key-quiz_panel label[data-testid="stRadioOption"] > div > div:not([data-testid="stMarkdownContainer"]) { display: none; }
+.st-key-quiz_panel label[data-testid="stRadioOption"] { justify-content: center; }
+.st-key-quiz_panel label[data-testid="stRadioOption"] p { font-size: 17px; font-weight: 600; line-height: 1.45; color: #141a26; }
+.st-key-quiz_panel [role="radiogroup"] { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; width: 100%; }
+.st-key-quiz_panel [data-testid="stRadio"], .st-key-quiz_panel [data-testid="stRadio"] > div { width: 100%; }
+
+/* 내 언어로 설명하기: 질문은 굵은 본문, 입력칸은 흰 바탕 테두리. */
+.st-key-own_words_panel [data-testid="stAlert"] > div { background: transparent; padding: 0; }
+.st-key-own_words_panel [data-testid="stAlert"] p { font-size: 17px; font-weight: 600; color: #141a26; }
+.st-key-own_words [data-baseweb="textarea"] { background: #ffffff !important; border: 1px solid #c9d1de !important; border-radius: 8px !important; }
+.st-key-own_words textarea { background: #ffffff !important; }
+
+/* 진행 상황 패널의 현재 개념 점 안 체크. */
+.concept-progress li.on .dot { position: relative; }
+.concept-progress li.on .dot::after { content: ''; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid #ffffff; border-width: 0 2px 2px 0; transform: rotate(45deg); }

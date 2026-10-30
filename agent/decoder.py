@@ -16,6 +16,7 @@ from agent.models import (
     DecodeResult,
     DocumentationEvidence,
     LearningPlan,
+    LearningTarget,
 )
 from agent.observability import (
     capture_content,
@@ -30,7 +31,12 @@ from agent.observability import (
 )
 from agent.observability_fields import CITATION_ISSUE_PRIORITY
 from agent.prompts import PROMPT_NAME, resolve_instructions
-from agent.quality import DecodeQualityError, is_single_question_format, validate_decode_result
+from agent.quality import (
+    DecodeQualityError,
+    drop_unverifiable_concepts,
+    is_single_question_format,
+    validate_decode_result,
+)
 from agent.run_context import DecodeRunContext, ToolContractError
 from agent.tools import decode_code_pipeline_tool
 
@@ -245,9 +251,21 @@ def _decode(
         expected={DecodeQualityError: ("ERROR", "citation_integrity_failed")},
     ) as citation_span:
         try:
+            primary_targets = _primary_targets(
+                pipeline_evidence.analysis, pipeline_evidence.learning_plan
+            )
+            answer, repaired_codes = drop_unverifiable_concepts(
+                result.final_output, pipeline_evidence.documentation, primary_targets
+            )
+            if repaired_codes:
+                citation_span.update(
+                    level="WARNING",
+                    status_message="concepts_repaired:" + ",".join(repaired_codes),
+                )
             validated_result = validate_decode_result(
-                result.final_output,
+                answer,
                 pipeline_evidence.documentation,
+                primary_targets,
             )
         except DecodeQualityError as exc:
             citation_span.update(output={"passed": False, "issueCodes": list(exc.issue_codes)})
@@ -289,6 +307,11 @@ def _score_answer(
     root.score("check_format_passed", is_single_question_format(answer.check))
 
 
+def _primary_targets(analysis: CodeAnalysis, plan: LearningPlan) -> list[LearningTarget]:
+    by_id = {target.target_id: target for target in analysis.learning_targets}
+    return [by_id[item.target_id] for item in plan.primary_targets if item.target_id in by_id]
+
+
 def _representative_issue(issue_codes: tuple[str, ...]) -> str:
     for code in CITATION_ISSUE_PRIORITY:
         if code in issue_codes:
@@ -319,4 +342,6 @@ def _root_output(result: DecodeResult) -> dict[str, Any]:
         "whatCount": len(result.what),
         "sourceCount": len(result.source),
         "hasExample": bool(result.example.strip()),
+        "conceptCount": len(result.concepts),
+        "quizOptionCount": len(result.quiz.options),
     }

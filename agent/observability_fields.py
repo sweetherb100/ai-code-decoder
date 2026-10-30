@@ -93,6 +93,10 @@ CITATION_ISSUE_PRIORITY: tuple[str, ...] = (
     "missing_source",
     "unexpected_source",
     "invalid_check_format",
+    "unverified_concept_source",
+    "unknown_concept_target",
+    "duplicate_concept",
+    "invalid_quiz",
 )
 
 # Documentation statuses whose module/symbol are public Python names. Other
@@ -158,7 +162,9 @@ CONTENT_ATTRIBUTE_PREFIXES: tuple[str, ...] = (
 OBSERVATION_PAYLOAD_KEYS: dict[str, dict[str, frozenset[str]]] = {
     ROOT_OBSERVATION_NAME: {
         "input": frozenset({"codeChars", "contextChars", "level"}),
-        "output": frozenset({"whatCount", "sourceCount", "hasExample"}),
+        "output": frozenset(
+            {"whatCount", "sourceCount", "hasExample", "conceptCount", "quizOptionCount"}
+        ),
     },
     "validate_input.analyze_code": {
         "input": frozenset({"codeChars", "contextChars"}),
@@ -196,7 +202,7 @@ OBSERVATION_PAYLOAD_KEYS: dict[str, dict[str, frozenset[str]]] = {
 }
 ROOT_CONTENT_PAYLOAD_KEYS: dict[str, frozenset[str]] = {
     "input": frozenset({"code", "context", "level"}),
-    "output": frozenset({"what", "why", "source", "example", "check"}),
+    "output": frozenset({"what", "why", "source", "example", "check", "concepts", "quiz"}),
 }
 
 
