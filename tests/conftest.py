@@ -57,6 +57,14 @@ def decode_result_json(**overrides: Any) -> str:
         "source": [],
         "example": "print(1)",
         "check": "무엇을 반환할까요?",
+        "concepts": [],
+        "quiz": {
+            "question": "인자를 바꾸면 무엇이 달라질까요?",
+            "options": [
+                {"label": "출력 문자열", "correct": True, "feedback": "직렬화 결과가 바뀝니다."},
+                {"label": "아무것도", "correct": False, "feedback": "인자가 결과에 쓰입니다."},
+            ],
+        },
     }
     body.update(overrides)
     return json.dumps(body, ensure_ascii=False)
