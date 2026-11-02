@@ -50,16 +50,10 @@ def analyze_code(code: str, surrounding_context: str = "") -> CodeAnalysis:
         body=[statement for parsed in trees for statement in parsed.body],
         type_ignores=[item for parsed in trees for item in parsed.type_ignores],
     )
-    source_by_node_id = {
-        id(node): ("submitted_code", code)
-        for node in ast.walk(code_tree)
-    }
+    source_by_node_id = {id(node): ("submitted_code", code) for node in ast.walk(code_tree)}
     if surrounding_context.strip():
         source_by_node_id.update(
-            {
-                id(node): ("surrounding_context", surrounding_context)
-                for node in ast.walk(trees[1])
-            }
+            {id(node): ("surrounding_context", surrounding_context) for node in ast.walk(trees[1])}
         )
     parent_by_node_id: dict[int, ast.AST] = {}
     for parent in ast.walk(tree):
@@ -117,13 +111,9 @@ def analyze_code(code: str, surrounding_context: str = "") -> CodeAnalysis:
         key = (name, module, symbol)
         if key in targets:
             return
-        source, source_text = source_by_node_id.get(
-            id(node), ("submitted_code", code)
-        )
+        source, source_text = source_by_node_id.get(id(node), ("submitted_code", code))
         parent = parent_by_node_id.get(id(node))
-        parent_parts = (
-            _attribute_parts(parent.func) if isinstance(parent, ast.Call) else []
-        )
+        parent_parts = _attribute_parts(parent.func) if isinstance(parent, ast.Call) else []
         targets[key] = LearningTarget(
             target_id=f"target-{len(targets) + 1}",
             name=name,
@@ -159,9 +149,7 @@ def analyze_code(code: str, surrounding_context: str = "") -> CodeAnalysis:
                 else:
                     module_parts = module.split(".")
                     consumed = (
-                        len(module_parts)
-                        if parts[: len(module_parts)] == module_parts
-                        else 1
+                        len(module_parts) if parts[: len(module_parts)] == module_parts else 1
                     )
                     symbol = ".".join(parts[consumed:]) or module.rsplit(".", 1)[-1]
                 add_target(

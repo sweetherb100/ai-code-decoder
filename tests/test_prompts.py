@@ -84,7 +84,10 @@ def _fallback_prompt():
     [
         (_fallback_prompt(), "fetch_failed"),
         (RuntimeError("boom"), "unexpected"),
-        (make_text_prompt(config=config(schemaVersion=PROMPT_SCHEMA_VERSION + 1)), "schema_mismatch"),
+        (
+            make_text_prompt(config=config(schemaVersion=PROMPT_SCHEMA_VERSION + 1)),
+            "schema_mismatch",
+        ),
         (make_text_prompt(config={"model": "x"}), "schema_mismatch"),
         (make_text_prompt(config=config(levelStyles={"Beginner": "only one"})), "invalid_config"),
         (make_text_prompt(config=config(model="")), "invalid_config"),
@@ -142,7 +145,10 @@ def test_parameters_come_from_prompt_config(prompt_config, temperature, effort):
     resolved = resolve(prompt_config)
     assert resolved.source == "langfuse"
     assert resolved.inference.source == "prompt_config"
-    assert (resolved.inference.temperature, resolved.inference.reasoning_effort) == (temperature, effort)
+    assert (resolved.inference.temperature, resolved.inference.reasoning_effort) == (
+        temperature,
+        effort,
+    )
 
 
 @pytest.mark.parametrize(

@@ -4,12 +4,8 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Literal
 
-from agent.models import CodeAnalysis, DecodePipelineEvidence
-
-
-AudienceLevel = Literal["Beginner", "Developer"]
+from agent.models import AudienceLevel, CodeAnalysis, DecodePipelineEvidence
 
 
 class ToolContractError(RuntimeError):
@@ -45,8 +41,7 @@ class DecodeRunContext:
             raise ToolContractError("에이전트가 코드 디코드 파이프라인 도구를 호출하지 않았습니다.")
 
         targets_by_id = {
-            target.target_id: target
-            for target in self.pipeline_evidence.analysis.learning_targets
+            target.target_id: target for target in self.pipeline_evidence.analysis.learning_targets
         }
         expected_documents = Counter(
             (
@@ -56,11 +51,8 @@ class DecodeRunContext:
             for item in self.pipeline_evidence.learning_plan.primary_targets
         )
         returned_documents = Counter(
-            (evidence.module, evidence.symbol)
-            for evidence in self.pipeline_evidence.documentation
+            (evidence.module, evidence.symbol) for evidence in self.pipeline_evidence.documentation
         )
         if expected_documents != returned_documents:
-            raise ToolContractError(
-                "학습 계획의 대상과 문서 조회 결과가 일치하지 않습니다."
-            )
+            raise ToolContractError("학습 계획의 대상과 문서 조회 결과가 일치하지 않습니다.")
         return self.pipeline_evidence

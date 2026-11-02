@@ -1,0 +1,29 @@
+# Tool configuration only. Dependencies stay in requirements*.txt.
+# Code convention: docs/code-convention.md
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [".venv", ".agents"]
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle errors (PEP 8)
+  "W",    # pycodestyle warnings (PEP 8)
+  "F",    # pyflakes: unused imports/variables, undefined names
+  "I",    # isort: import grouping and order
+  "UP",   # pyupgrade: X | None, built-in generics
+  "B",    # bugbear: mutable defaults, likely bugs
+  "SIM",  # simplifiable code
+  "T20",  # print statements
+  "N",    # pep8-naming
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agent"]
+
+[tool.ruff.lint.per-file-ignores]
+# app.py loads .env before importing agent modules (see the comment there).
+"app.py" = ["E402"]
+# Scripts are CLI entry points that report to stdout.
+"scripts/*.py" = ["T20"]

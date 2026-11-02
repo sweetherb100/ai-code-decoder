@@ -10,18 +10,18 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from agent.models import DecodeResult
 
-
-BASE_INSTRUCTIONS = f"""
+BASE_INSTRUCTIONS = """
 You are AI Code Decode Agent, a tutor that helps a developer understand Python code.
 Never rewrite the user's code as your main task, and never claim to execute it.
 For a Python code-understanding request, call decode_code_pipeline exactly once
 before producing an answer. It is the only source of analysis, learning-plan, and
 documentation evidence. The tool is read-only and never executes the submitted
-code. Do not use it to modify code, run code, or infer third-party API behavior.
+code. Do not use it to modify code or run code, and do not describe third-party API
+behavior beyond its returned documentation evidence.
 Use only its returned results; do not invent external documentation. If a target is
 unsupported or its official documentation cannot be fetched, say so clearly and do
 not invent a source.
@@ -30,7 +30,8 @@ Return Korean content matching this exact structure:
 - what: important syntax/API facts grounded in the submitted code and tool results
 - why: explain how the surrounding statements affect the likely purpose; separate
   observable facts from inferred intent, and qualify intent as a possibility
-- source: official Python documentation references returned by the lookup tool
+- source: official documentation references returned by the lookup tool (Python's
+  docs, or a supported third-party package's own docs)
 - example: a short, correct Python example that makes the concept concrete
 - check: exactly one short question that checks understanding
 
@@ -54,10 +55,10 @@ PROMPT_SCHEMA_VERSION = 1
 DEFAULT_MODEL = "gpt-4.1-mini"
 # None means "not sent": the provider default applies (1.0 for OpenAI), and no
 # parameter is sent that a reasoning model could reject.
-DEFAULT_TEMPERATURE: Optional[float] = None
+DEFAULT_TEMPERATURE: float | None = None
 TEMPERATURE_RANGE = (0.0, 2.0)
 # Not sent by default: the default model is not a reasoning model and rejects it.
-DEFAULT_REASONING_EFFORT: Optional[str] = None
+DEFAULT_REASONING_EFFORT: str | None = None
 REASONING_EFFORTS = frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max"})
 LEVELS = ("Beginner", "Developer")
 REQUIRED_VARIABLES = frozenset({"level", "level_style"})
@@ -72,9 +73,7 @@ LEVEL_STYLES = {
         "relevant trade-offs, and how the surrounding code affects the result."
     ),
 }
-LOCAL_SYSTEM_PROMPT_TEMPLATE = (
-    BASE_INSTRUCTIONS + "\n\nAudience level: {{level}}. {{level_style}}"
-)
+LOCAL_SYSTEM_PROMPT_TEMPLATE = BASE_INSTRUCTIONS + "\n\nAudience level: {{level}}. {{level_style}}"
 LOCAL_PROMPT_CONFIG: dict[str, Any] = {
     "schemaVersion": PROMPT_SCHEMA_VERSION,
     "model": DEFAULT_MODEL,
@@ -82,9 +81,12 @@ LOCAL_PROMPT_CONFIG: dict[str, Any] = {
     "reasoningEffort": DEFAULT_REASONING_EFFORT,
     "levelStyles": LEVEL_STYLES,
 }
-LOCAL_PROMPT_VERSION = "fallback-" + hashlib.sha256(
-    (LOCAL_SYSTEM_PROMPT_TEMPLATE + json.dumps(LOCAL_PROMPT_CONFIG, sort_keys=True)).encode()
-).hexdigest()[:12]
+LOCAL_PROMPT_VERSION = (
+    "fallback-"
+    + hashlib.sha256(
+        (LOCAL_SYSTEM_PROMPT_TEMPLATE + json.dumps(LOCAL_PROMPT_CONFIG, sort_keys=True)).encode()
+    ).hexdigest()[:12]
+)
 
 
 class PromptConfigError(ValueError):
@@ -97,10 +99,12 @@ class PromptConfigError(ValueError):
 
 @dataclass(frozen=True)
 class ConfigValues:
+    """Validated values from a Langfuse prompt config."""
+
     level_styles: dict[str, str]
-    model: Optional[str]
-    temperature: Optional[float]
-    reasoning_effort: Optional[str]
+    model: str | None
+    temperature: float | None
+    reasoning_effort: str | None
 
 
 @dataclass(frozen=True)
@@ -113,17 +117,19 @@ class InferenceConfig:
 
     model: str
     source: str  # env / prompt_config / default
-    temperature: Optional[float] = DEFAULT_TEMPERATURE
-    reasoning_effort: Optional[str] = DEFAULT_REASONING_EFFORT
+    temperature: float | None = DEFAULT_TEMPERATURE
+    reasoning_effort: str | None = DEFAULT_REASONING_EFFORT
 
 
 @dataclass(frozen=True)
 class ResolvedPrompt:
+    """System prompt and inference settings chosen for one decode run."""
+
     instructions: str
     inference: InferenceConfig
     source: str
     version: str
-    fallback_reason: Optional[str] = None
+    fallback_reason: str | None = None
     remote: Any = None
 
 
@@ -178,8 +184,7 @@ def _validate_config(config: Any) -> ConfigValues:
         raise PromptConfigError("schema_mismatch")
     level_styles = config.get("levelStyles")
     if not isinstance(level_styles, dict) or not all(
-        isinstance(level_styles.get(level), str) and level_styles[level].strip()
-        for level in LEVELS
+        isinstance(level_styles.get(level), str) and level_styles[level].strip() for level in LEVELS
     ):
         raise PromptConfigError("invalid_config")
     model = config.get("model")
@@ -190,7 +195,7 @@ def _validate_config(config: Any) -> ConfigValues:
     )
 
 
-def _config_reasoning_effort(config: dict[str, Any]) -> Optional[str]:
+def _config_reasoning_effort(config: dict[str, Any]) -> str | None:
     """Missing or null -> not sent; otherwise one of the SDK's effort values."""
     value = config.get("reasoningEffort", DEFAULT_REASONING_EFFORT)
     if value is None:
@@ -200,7 +205,7 @@ def _config_reasoning_effort(config: dict[str, Any]) -> Optional[str]:
     return value
 
 
-def _config_temperature(config: dict[str, Any]) -> Optional[float]:
+def _config_temperature(config: dict[str, Any]) -> float | None:
     """Missing or null -> not sent; a number in range -> sent."""
     value = config.get("temperature", DEFAULT_TEMPERATURE)
     if value is None:
@@ -214,7 +219,7 @@ def _config_temperature(config: dict[str, Any]) -> Optional[float]:
     return float(value)
 
 
-def _inference(config: Optional[ConfigValues]) -> InferenceConfig:
+def _inference(config: ConfigValues | None) -> InferenceConfig:
     """Pick the whole inference bundle: env override > prompt config > default.
 
     OPENAI_MODEL is an emergency override of the model, so the prompt's

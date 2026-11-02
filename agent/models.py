@@ -1,8 +1,10 @@
 """Structured input and output models used by the decoder."""
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+AudienceLevel = Literal["Beginner", "Developer"]
 
 
 class LearningTarget(BaseModel):
@@ -17,16 +19,12 @@ class LearningTarget(BaseModel):
     source: Literal["submitted_code", "surrounding_context"] = Field(
         description="Which submitted input contains the expression"
     )
-    line: Optional[int] = Field(
-        description="One-based source line containing the expression"
-    )
-    end_line: Optional[int] = Field(
-        description="One-based final source line of the expression"
-    )
+    line: int | None = Field(description="One-based source line containing the expression")
+    end_line: int | None = Field(description="One-based final source line of the expression")
     resolution: Literal["resolved", "unresolved"] = Field(
         description="Whether static analysis resolved a module and symbol"
     )
-    used_as_input_of: Optional[str] = Field(
+    used_as_input_of: str | None = Field(
         description="Direct enclosing call that receives this call result, when known"
     )
 
@@ -59,7 +57,7 @@ class ExcludedLearningTarget(BaseModel):
 class LearningPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    audience_level: Literal["Beginner", "Developer"]
+    audience_level: AudienceLevel
     primary_targets: list[LearningPlanItem]
     syntax_topics: list[str]
     excluded_targets: list[ExcludedLearningTarget]
@@ -75,7 +73,7 @@ class DocumentationEvidence(BaseModel):
     title: str
     excerpt: str
     url: str
-    error_type: Optional[str] = Field(
+    error_type: str | None = Field(
         default=None, description="Exception class name when status is unavailable"
     )
 

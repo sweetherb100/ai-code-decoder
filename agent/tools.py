@@ -13,12 +13,14 @@ def decode_code_pipeline_tool(context: RunContextWrapper[DecodeRunContext]) -> s
     This is a read-only tool: it never executes, rewrites, stores, or otherwise
     changes the submitted code. Use it exactly once before answering a request to
     explain the submitted Python code. Do not use it to run code, modify code,
-    investigate third-party library APIs, or answer unrelated questions.
+    research APIs beyond the returned evidence, or answer unrelated questions.
 
     Static AST analysis has already validated the submitted code before the AI
     call. This tool performs two internal steps in this fixed order:
-    deterministic learning-plan selection and official Python documentation
-    lookup for each selected target. It returns JSON with:
+    deterministic learning-plan selection and official documentation lookup for
+    each selected target. Built-ins and the standard library use Python's docs;
+    supported third-party packages use their own official docs; other packages
+    are unsupported. It returns JSON with:
     - analysis: imports, syntax, traceable learning targets, and analyzer notes;
     - learning_plan: selected target IDs and their explanation order; and
     - documentation: one evidence item per selected target.

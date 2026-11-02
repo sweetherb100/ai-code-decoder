@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 import pytest
+from agents import set_default_openai_client
 from openai import AsyncOpenAI
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
-from agents import set_default_openai_client
 
 CANARY = "canary_xyz"
 
@@ -78,7 +78,13 @@ class FakeOpenAI:
         if self.error_status is not None:
             return httpx.Response(
                 self.error_status,
-                json={"error": {"message": f"{CANARY}_api_error echoing input", "type": "invalid_request_error", "code": "x"}},
+                json={
+                    "error": {
+                        "message": f"{CANARY}_api_error echoing input",
+                        "type": "invalid_request_error",
+                        "code": "x",
+                    }
+                },
             )
         has_tool_output = any(
             isinstance(item, dict) and item.get("type") == "function_call_output"

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-
 TRACE_NAME = "code-decode"
 ROOT_OBSERVATION_NAME = "decode_code"
 APP_TAG = "app:code-decoder"
@@ -25,7 +24,8 @@ Outcome = Literal[
 ]
 OUTCOMES: frozenset[str] = frozenset(Outcome.__args__)  # type: ignore[attr-defined]
 
-# Root metadata registry. Keys are camelCase because Langfuse metadata keys must be alphanumeric. Prompt keys are added with prompt management.
+# Root metadata registry. Keys are camelCase because Langfuse metadata keys must be
+# alphanumeric. Prompt keys are added with prompt management.
 ROOT_METADATA_KEYS: dict[str, type] = {
     "outcome": str,
     "model": str,
@@ -205,7 +205,7 @@ def is_allowed_attribute(key: str, *, capture_content: bool) -> bool:
     if key in ALLOWED_ATTRIBUTE_KEYS or key.startswith(ALLOWED_ATTRIBUTE_PREFIXES):
         return True
     if key.startswith(METADATA_ATTRIBUTE_PREFIX):
-        return key[len(METADATA_ATTRIBUTE_PREFIX):] in ROOT_METADATA_KEYS
+        return key[len(METADATA_ATTRIBUTE_PREFIX) :] in ROOT_METADATA_KEYS
     if not capture_content:
         return False
     return key in CONTENT_ATTRIBUTE_KEYS or key.startswith(CONTENT_ATTRIBUTE_PREFIXES)

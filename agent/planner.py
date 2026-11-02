@@ -2,22 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from agent.models import (
+    AudienceLevel,
     ExcludedLearningTarget,
     LearningPlan,
     LearningPlanItem,
     LearningTarget,
 )
 
-
 MAX_PRIMARY_TARGETS = 3
 
 
-def _dependency_depth(
-    target: LearningTarget, targets_by_name: dict[str, LearningTarget]
-) -> int:
+def _dependency_depth(target: LearningTarget, targets_by_name: dict[str, LearningTarget]) -> int:
     depth = 0
     parent_name = target.used_as_input_of
     visited_names = {target.name}
@@ -45,12 +41,10 @@ def _selection_reason(target: LearningTarget) -> str:
 def build_learning_plan(
     learning_targets: list[LearningTarget],
     syntax: list[str],
-    level: Literal["Beginner", "Developer"],
+    level: AudienceLevel,
 ) -> LearningPlan:
     """Create a deterministic, small explanation plan from resolved targets."""
-    resolved_targets = [
-        target for target in learning_targets if target.resolution == "resolved"
-    ]
+    resolved_targets = [target for target in learning_targets if target.resolution == "resolved"]
     targets_by_name = {target.name: target for target in resolved_targets}
     ranked_targets = sorted(
         resolved_targets,
@@ -76,9 +70,7 @@ def build_learning_plan(
                 f"핵심 개념을 최대 {MAX_PRIMARY_TARGETS}개로 제한하기 위해 "
                 "이번 설명에서 제외했습니다."
             )
-        excluded_targets.append(
-            ExcludedLearningTarget(target_id=target.target_id, reason=reason)
-        )
+        excluded_targets.append(ExcludedLearningTarget(target_id=target.target_id, reason=reason))
 
     return LearningPlan(
         audience_level=level,

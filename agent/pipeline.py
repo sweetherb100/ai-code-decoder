@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from agent.documentation import lookup_documentation
-from agent.models import CodeAnalysis, DecodePipelineEvidence, DocumentationEvidence
+from agent.models import (
+    AudienceLevel,
+    CodeAnalysis,
+    DecodePipelineEvidence,
+    DocumentationEvidence,
+)
 from agent.observability import observation
 from agent.observability_fields import PUBLIC_DOC_STATUSES
 from agent.planner import build_learning_plan
-
-
-AudienceLevel = Literal["Beginner", "Developer"]
 
 
 def run_decode_pipeline(
@@ -35,9 +35,7 @@ def run_decode_pipeline(
                 "syntaxTopics": learning_plan.syntax_topics,
             }
         )
-    targets_by_id = {
-        target.target_id: target for target in analysis.learning_targets
-    }
+    targets_by_id = {target.target_id: target for target in analysis.learning_targets}
     documentation = [
         _traced_lookup(
             targets_by_id[plan_item.target_id].module,
