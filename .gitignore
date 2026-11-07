@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local synthetic evaluation outputs (not publication artifacts)
+.week6-results/

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from agents import Agent, ModelSettings, RunConfig, Runner
@@ -11,6 +12,7 @@ from agents.exceptions import MaxTurnsExceeded, ModelBehaviorError
 from openai.types.shared import Reasoning
 
 from agent.analyzer import CodeAnalysisError, analyze_code
+from agent.evaluation import build_evaluation_input
 from agent.models import (
     AudienceLevel,
     CodeAnalysis,
@@ -73,6 +75,8 @@ class DecodeExecution:
     trace_id: str | None = None
     root_observation_id: str | None = None
     trace_url: str | None = None
+    run_metadata: dict[str, Any] = field(default_factory=dict)
+    usage: dict[str, int] = field(default_factory=dict)
 
 
 def decode_code(
@@ -81,6 +85,7 @@ def decode_code(
     context: str = "",
     *,
     session_id: str | None = None,
+    evaluation_enabled: bool | None = None,
 ) -> DecodeExecution:
     """Generate a decode response through the Agents SDK function-tool loop."""
     init_observability()
@@ -108,6 +113,15 @@ def decode_code(
             metadata=root_metadata(metadata),
             output=_root_output(execution.result),
         )
+        should_evaluate = (
+            os.getenv("LANGFUSE_EVALUATION_ENABLED") == "1"
+            if evaluation_enabled is None
+            else evaluation_enabled
+        )
+        if should_evaluate:
+            root.record_evaluation(
+                build_evaluation_input(code, level, context, execution), execution.result
+            )
         return replace(
             execution,
             trace_id=root.trace_id,
@@ -264,6 +278,23 @@ def _decode(
         learning_plan=pipeline_evidence.learning_plan,
         documentation=pipeline_evidence.documentation,
         tool_call_audit=run_context.tool_call_audit,
+        run_metadata={
+            key: metadata[key]
+            for key in (
+                "model",
+                "modelSource",
+                "promptSource",
+                "promptVersion",
+                "promptFallbackReason",
+                "temperature",
+                "reasoningEffort",
+            )
+            if key in metadata
+        },
+        usage={
+            key: getattr(result.context_wrapper.usage, key)
+            for key in ("requests", "input_tokens", "output_tokens", "total_tokens")
+        },
     )
 
 

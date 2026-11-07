@@ -117,6 +117,12 @@ def _render_execution_evidence(execution: DecodeExecution) -> None:
 
     if execution.trace_url:
         st.markdown(f"[Langfuse trace 열기]({execution.trace_url})")
+    elif active_settings().enabled and os.getenv("LANGFUSE_EVALUATION_ENABLED") == "1":
+        st.caption(
+            "자동 평가가 활성화되어 있습니다. 표본으로 선택된 답변은 코드·주변 코드·"
+            "공식 문서 근거와 함께 Langfuse에 전송되며, 평가 모델 호출 비용이 발생합니다. "
+            "점수는 Langfuse에서 비동기로 확인합니다."
+        )
     elif active_settings().enabled:
         st.caption(
             "Langfuse tracing이 활성화되어 있습니다. 기본 설정에서는 코드 원문 없이 "
@@ -178,9 +184,11 @@ if decode_clicked:
             # Keep the decoded input so later edits in the text areas do not leak into exports.
             st.session_state["decode_input"] = {"code": code, "context": context}
         except CodeAnalysisError as exc:
+            status.update(label="입력 코드 분석 중단", state="error", expanded=False)
             st.error(str(exc))
             _clear_decode_state()
         except DecodeQualityError as exc:
+            status.update(label="응답 검증 실패", state="error", expanded=False)
             st.error(str(exc))
             st.caption("도구 근거에 맞는 응답을 만들지 못했습니다. 다시 시도해 주세요.")
             _clear_decode_state()
@@ -219,7 +227,7 @@ with right:
     else:
         st.markdown("### What")
         for item in decoded.what:
-            st.markdown(f"- {item}")
+            st.text(f"• {item}")
         st.markdown("### Why")
         st.write(decoded.why)
         st.markdown("### Source")

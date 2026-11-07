@@ -27,6 +27,10 @@ OUTCOMES: frozenset[str] = frozenset(Outcome.__args__)  # type: ignore[attr-defi
 # Root metadata registry. Keys are camelCase because Langfuse metadata keys must be
 # alphanumeric. Prompt keys are added with prompt management.
 ROOT_METADATA_KEYS: dict[str, type] = {
+    "evaluationSampled": bool,
+    "evaluationSampleRate": float,
+    "evaluationSchema": str,
+    "evaluationProtocol": str,
     "outcome": str,
     "model": str,
     "modelSource": str,
@@ -126,6 +130,13 @@ ALLOWED_ATTRIBUTE_KEYS: frozenset[str] = frozenset(
         "langfuse.observation.status_message",
         "langfuse.observation.prompt.name",
         "langfuse.observation.prompt.version",
+        # SDK 5 native experiment linkage (IDs only; no dataset content/metadata).
+        "langfuse.experiment.id",
+        "langfuse.experiment.name",
+        "langfuse.experiment.dataset.id",
+        "langfuse.experiment.item.id",
+        "langfuse.experiment.item.version",
+        "langfuse.experiment.item.root_observation_id",
         # Manual observation payloads. Their content is limited by
         # OBSERVATION_PAYLOAD_KEYS before they are set.
         "langfuse.observation.input",
