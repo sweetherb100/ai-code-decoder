@@ -1,0 +1,254 @@
+[
+  {
+    "case": {
+      "case_id": "control-correct",
+      "group_id": "control-sorted",
+      "split": "dev",
+      "level": "Beginner",
+      "code": "numbers = [3, 1, 2]\nresult = sorted(numbers)",
+      "context": "",
+      "expected_outcome": "success",
+      "facts": [
+        "sorted는 새 정렬 리스트를 반환한다.",
+        "numbers는 [3, 1, 2]이고 result는 [1, 2, 3]이다."
+      ],
+      "forbidden_claims": [
+        "sorted가 원본 리스트를 직접 변경한다."
+      ],
+      "reference_urls": [
+        "https://docs.python.org/3/library/functions.html#sorted"
+      ],
+      "documentation_mode": "live"
+    },
+    "evidence": {
+      "answer": {
+        "what": [
+          "sorted는 정렬된 새 리스트를 만듭니다."
+        ],
+        "why": "numbers는 [3, 1, 2]를 유지하고 result에 [1, 2, 3]이 들어갑니다.",
+        "source": [
+          {
+            "source_id": "sorted-doc",
+            "title": "sorted",
+            "url": "https://docs.python.org/3/library/functions.html#sorted"
+          }
+        ],
+        "example": "values = [2, 1]\nordered = sorted(values)",
+        "check": "sorted를 호출한 뒤 원래 리스트는 어떻게 될까요?"
+      },
+      "documentation": [
+        {
+          "source_id": "sorted-doc",
+          "status": "exact_match",
+          "module": "builtins",
+          "symbol": "sorted",
+          "title": "sorted",
+          "excerpt": "Return a new sorted list from the items in iterable.",
+          "url": "https://docs.python.org/3/library/functions.html#sorted",
+          "error_type": null
+        }
+      ]
+    },
+    "expected_critical_error": false,
+    "expected_categories": {
+      "semantic_correctness": [
+        "adequate",
+        "excellent"
+      ],
+      "evidence_faithfulness": [
+        "adequate",
+        "excellent"
+      ],
+      "audience_fit": [
+        "adequate",
+        "excellent"
+      ]
+    }
+  },
+  {
+    "case": {
+      "case_id": "control-incorrect",
+      "group_id": "control-sorted",
+      "split": "dev",
+      "level": "Beginner",
+      "code": "numbers = [3, 1, 2]\nresult = sorted(numbers)",
+      "context": "",
+      "expected_outcome": "success",
+      "facts": [
+        "sorted는 새 정렬 리스트를 반환한다.",
+        "numbers는 [3, 1, 2]이고 result는 [1, 2, 3]이다."
+      ],
+      "forbidden_claims": [
+        "sorted가 원본 리스트를 직접 변경한다."
+      ],
+      "reference_urls": [
+        "https://docs.python.org/3/library/functions.html#sorted"
+      ],
+      "documentation_mode": "live"
+    },
+    "evidence": {
+      "answer": {
+        "what": [
+          "sorted는 원본 numbers를 직접 정렬합니다."
+        ],
+        "why": "numbers는 [1, 2, 3]으로 바뀌고 result도 [1, 2, 3]입니다.",
+        "source": [
+          {
+            "source_id": "sorted-doc",
+            "title": "sorted",
+            "url": "https://docs.python.org/3/library/functions.html#sorted"
+          }
+        ],
+        "example": "values = [2, 1]\nordered = sorted(values)",
+        "check": "sorted를 호출한 뒤 원래 리스트는 어떻게 될까요?"
+      },
+      "documentation": [
+        {
+          "source_id": "sorted-doc",
+          "status": "exact_match",
+          "module": "builtins",
+          "symbol": "sorted",
+          "title": "sorted",
+          "excerpt": "Return a new sorted list from the items in iterable.",
+          "url": "https://docs.python.org/3/library/functions.html#sorted",
+          "error_type": null
+        }
+      ]
+    },
+    "expected_critical_error": true,
+    "expected_categories": {
+      "semantic_correctness": [
+        "deficient",
+        "incorrect"
+      ],
+      "evidence_faithfulness": [
+        "deficient",
+        "incorrect"
+      ]
+    }
+  },
+  {
+    "case": {
+      "case_id": "control-fabricated-attribution",
+      "group_id": "control-sorted",
+      "split": "dev",
+      "level": "Beginner",
+      "code": "numbers = [3, 1, 2]\nresult = sorted(numbers)",
+      "context": "",
+      "expected_outcome": "success",
+      "facts": [
+        "sorted는 새 정렬 리스트를 반환한다.",
+        "numbers는 [3, 1, 2]이고 result는 [1, 2, 3]이다."
+      ],
+      "forbidden_claims": [
+        "sorted가 원본 리스트를 직접 변경한다."
+      ],
+      "reference_urls": [
+        "https://docs.python.org/3/library/functions.html#sorted"
+      ],
+      "documentation_mode": "live"
+    },
+    "evidence": {
+      "answer": {
+        "what": [
+          "sorted는 정렬된 새 리스트를 만듭니다."
+        ],
+        "why": "numbers는 [3, 1, 2]를 유지하고 result에 [1, 2, 3]이 들어갑니다. 제공된 sorted-doc 문서의 원문에는 \"Python uses Timsort with O(n log n) worst-case complexity\"라고 명시되어 있습니다.",
+        "source": [
+          {
+            "source_id": "sorted-doc",
+            "title": "sorted",
+            "url": "https://docs.python.org/3/library/functions.html#sorted"
+          }
+        ],
+        "example": "values = [2, 1]\nordered = sorted(values)",
+        "check": "sorted를 호출한 뒤 원래 리스트는 어떻게 될까요?"
+      },
+      "documentation": [
+        {
+          "source_id": "sorted-doc",
+          "status": "exact_match",
+          "module": "builtins",
+          "symbol": "sorted",
+          "title": "sorted",
+          "excerpt": "Return a new sorted list from the items in iterable.",
+          "url": "https://docs.python.org/3/library/functions.html#sorted",
+          "error_type": null
+        }
+      ]
+    },
+    "expected_critical_error": false,
+    "expected_categories": {
+      "semantic_correctness": [
+        "adequate",
+        "excellent"
+      ],
+      "evidence_faithfulness": [
+        "deficient",
+        "incorrect"
+      ]
+    }
+  },
+  {
+    "case": {
+      "case_id": "control-beginner-jargon",
+      "group_id": "control-sorted",
+      "split": "dev",
+      "level": "Beginner",
+      "code": "numbers = [3, 1, 2]\nresult = sorted(numbers)",
+      "context": "",
+      "expected_outcome": "success",
+      "facts": [
+        "sorted는 새 정렬 리스트를 반환한다.",
+        "numbers는 [3, 1, 2]이고 result는 [1, 2, 3]이다."
+      ],
+      "forbidden_claims": [
+        "sorted가 원본 리스트를 직접 변경한다."
+      ],
+      "reference_urls": [
+        "https://docs.python.org/3/library/functions.html#sorted"
+      ],
+      "documentation_mode": "live"
+    },
+    "evidence": {
+      "answer": {
+        "what": [
+          "sorted는 iterable을 materialize한 후 comparison relation에 의해 permutation된 fresh list를 산출하는 non-mutating transformation이다."
+        ],
+        "why": "입력 sequence의 identity와 ordering은 invariant이고 반환 sequence만 order relation을 만족한다. 구현 관점의 materialization과 aliasing 구별을 전제한다.",
+        "source": [
+          {
+            "source_id": "sorted-doc",
+            "title": "sorted",
+            "url": "https://docs.python.org/3/library/functions.html#sorted"
+          }
+        ],
+        "example": "xs = [3, 1, 2]\nys = sorted(xs)",
+        "check": "materialization 이후 identity와 ordering invariant의 차이는 무엇인가?"
+      },
+      "documentation": [
+        {
+          "source_id": "sorted-doc",
+          "status": "exact_match",
+          "module": "builtins",
+          "symbol": "sorted",
+          "title": "sorted",
+          "excerpt": "Return a new sorted list from the items in iterable.",
+          "url": "https://docs.python.org/3/library/functions.html#sorted",
+          "error_type": null
+        }
+      ]
+    },
+    "expected_critical_error": false,
+    "expected_categories": {
+      "semantic_correctness": [
+        "adequate",
+        "excellent"
+      ],
+      "audience_fit": [
+        "deficient",
+        "incorrect"
+      ]
+    }
+  }
+]

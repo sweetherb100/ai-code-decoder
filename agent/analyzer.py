@@ -129,6 +129,21 @@ def analyze_code(code: str, surrounding_context: str = "") -> CodeAnalysis:
         )
 
     call_names: list[str] = []
+    # Conservatively decline new inline inference if a name is rebound in any
+    # scope. Full scope-sensitive type inference is outside this analyzer.
+    rebound_names = (
+        {
+            node.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del))
+        }
+        | {node.arg for node in ast.walk(tree) if isinstance(node, ast.arg)}
+        | {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        }
+    )
     has_fstring = False
     has_comprehension = False
     has_async = False
@@ -136,6 +151,29 @@ def analyze_code(code: str, surrounding_context: str = "") -> CodeAnalysis:
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
+            # Resolve only a known Path constructor's immediate method. Arbitrary
+            # factory calls cannot establish a receiver type without execution.
+            if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Call):
+                receiver = node.func.value.func
+                constructor = (
+                    _attribute_parts(receiver)
+                    if isinstance(receiver, ast.Name)
+                    or (
+                        isinstance(receiver, ast.Attribute) and isinstance(receiver.value, ast.Name)
+                    )
+                    else []
+                )
+                imported = imported_names.get(constructor[0]) if constructor else None
+                known_path = (
+                    imported == ("pathlib", "Path")
+                    and len(constructor) == 1
+                    or (imported == ("pathlib", None) and constructor[1:] == ["Path"])
+                )
+                if known_path and constructor[0] not in rebound_names:
+                    name = ".".join([*constructor, node.func.attr])
+                    call_names.append(name)
+                    add_target(node, name, "method", "pathlib", f"Path.{node.func.attr}")
+                    continue
             parts = _attribute_parts(node.func)
             if not parts:
                 continue

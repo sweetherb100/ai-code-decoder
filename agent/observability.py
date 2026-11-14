@@ -255,6 +255,37 @@ class Observation:
         except Exception as exc:
             log_event("telemetry_update_failed", error=type(exc).__name__)
 
+    def record_evaluation(self, evidence: Any, answer: Any) -> None:
+        """Record typed evidence on this root only after explicit caller opt-in."""
+        from agent.evaluation import EVALUATION_SCHEMA, EvaluationInput, sample_evaluation
+        from agent.models import DecodeResult
+
+        if self._span is None:
+            return
+        try:
+            raw_rate = os.getenv("LANGFUSE_EVALUATION_SAMPLE_RATE", "1")
+            selected = sample_evaluation(self.trace_id, raw_rate)
+            self.update(
+                metadata={"evaluationSampled": selected, "evaluationSampleRate": float(raw_rate)}
+            )
+            if not selected:
+                return
+            payload = EvaluationInput.model_validate(evidence).model_dump(mode="json")
+            output = DecodeResult.model_validate(answer).model_dump(mode="json")
+            # This deliberately bypasses ordinary raw-free payload filtering, but
+            # does not change capture_content or child instrumentation settings.
+            self._span.update(
+                input={"evaluation": payload},
+                output={"answer": output},
+                metadata={
+                    "evaluationSchema": EVALUATION_SCHEMA,
+                    "evaluationProtocol": os.getenv("LANGFUSE_EVALUATION_PROTOCOL", ""),
+                },
+            )
+        except Exception as exc:
+            # Telemetry failure must never turn a valid answer into an app failure.
+            log_event("telemetry_evaluation_failed", error=type(exc).__name__)
+
     def score(self, name: str, value: bool | float | str) -> None:
         """Record a registered score on this observation."""
         if self._span is None:
